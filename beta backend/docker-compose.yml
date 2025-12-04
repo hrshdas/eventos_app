@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: beta
+      POSTGRES_PASSWORD: beta123
+      POSTGRES_DB: rental_marketplace
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
