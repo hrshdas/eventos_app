@@ -1,0 +1,259 @@
+import '../../../core/api/api_client.dart';
+import '../../../core/api/app_api_exception.dart';
+import '../../../core/auth/auth_storage.dart';
+import '../domain/models/user.dart';
+
+/// Repository for authentication operations
+/// Handles signup, login, token refresh, and session management
+class AuthRepository {
+  final ApiClient _apiClient;
+  final AuthStorage _authStorage;
+
+  AuthRepository({
+    ApiClient? apiClient,
+    AuthStorage? authStorage,
+  })  : _apiClient = apiClient ?? ApiClient(),
+        _authStorage = authStorage ?? AuthStorage();
+
+  /// Sign up a new user
+  /// Returns User on success, throws AppApiException on failure
+  Future<User> signup({
+    required String name,
+    required String email,
+    required String password,
+    String? role,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/signup',
+        data: {
+          'name': name,
+          'email': email,
+          'password': password,
+          if (role != null) 'role': role,
+        },
+      );
+
+      // Handle different response formats
+      Map<String, dynamic>? data;
+      if (response['data'] != null) {
+        data = response['data'] as Map<String, dynamic>?;
+      } else {
+        data = response;
+      }
+
+      if (data == null) {
+        throw AppApiException(
+          message: 'Invalid signup response',
+          statusCode: 200,
+        );
+      }
+
+      final accessToken = data['accessToken'] as String?;
+      final refreshToken = data['refreshToken'] as String?;
+      final userData = data['user'] as Map<String, dynamic>? ?? data;
+
+      if (accessToken == null || refreshToken == null) {
+        throw AppApiException(
+          message: 'Missing tokens in signup response',
+          statusCode: 200,
+        );
+      }
+
+      // Save tokens securely
+      await _authStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
+
+      // Update API client with access token
+      await _apiClient.setAccessToken(accessToken);
+
+      // Parse and return user
+      return User.fromJson(userData);
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: e.toString(),
+        originalError: e,
+      );
+    }
+  }
+
+  /// Login with email and password
+  /// Returns User on success, throws AppApiException on failure
+  Future<User> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/login',
+        data: {
+          'email': email,
+          'password': password,
+        },
+      );
+
+      // Handle different response formats
+      Map<String, dynamic>? data;
+      if (response['data'] != null) {
+        data = response['data'] as Map<String, dynamic>?;
+      } else {
+        data = response;
+      }
+
+      if (data == null) {
+        throw AppApiException(
+          message: 'Invalid login response',
+          statusCode: 200,
+        );
+      }
+
+      final accessToken = data['accessToken'] as String?;
+      final refreshToken = data['refreshToken'] as String?;
+      final userData = data['user'] as Map<String, dynamic>? ?? data;
+
+      if (accessToken == null || refreshToken == null) {
+        throw AppApiException(
+          message: 'Missing tokens in login response',
+          statusCode: 200,
+        );
+      }
+
+      // Save tokens securely
+      await _authStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
+
+      // Update API client with access token
+      await _apiClient.setAccessToken(accessToken);
+
+      // Parse and return user
+      return User.fromJson(userData);
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: e.toString(),
+        originalError: e,
+      );
+    }
+  }
+
+  /// Refresh access token using refresh token
+  /// Returns new access token on success, throws AppApiException on failure
+  Future<String> refreshToken() async {
+    try {
+      final refreshToken = await _authStorage.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) {
+        throw AppApiException(
+          message: 'No refresh token available',
+          statusCode: 401,
+        );
+      }
+
+      final response = await _apiClient.post(
+        '/auth/refresh',
+        data: {
+          'refreshToken': refreshToken,
+        },
+      );
+
+      // Handle different response formats
+      Map<String, dynamic>? data;
+      if (response['data'] != null) {
+        data = response['data'] as Map<String, dynamic>?;
+      } else {
+        data = response;
+      }
+
+      final newAccessToken = data?['accessToken'] as String?;
+
+      if (newAccessToken == null || newAccessToken.isEmpty) {
+        throw AppApiException(
+          message: 'Missing access token in refresh response',
+          statusCode: 200,
+        );
+      }
+
+      // Save new access token
+      await _authStorage.saveAccessToken(newAccessToken);
+      await _apiClient.setAccessToken(newAccessToken);
+
+      return newAccessToken;
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: e.toString(),
+        originalError: e,
+      );
+    }
+  }
+
+  /// Check if user is logged in based on stored tokens
+  Future<bool> isLoggedIn() async {
+    return await _authStorage.hasTokens();
+  }
+
+  /// Get current user from backend
+  /// Returns User if logged in and token is valid, null otherwise
+  Future<User?> getCurrentUser() async {
+    try {
+      // Check if we have tokens
+      final hasTokens = await _authStorage.hasTokens();
+      if (!hasTokens) {
+        return null;
+      }
+
+      // Ensure token is loaded in API client
+      final accessToken = await _authStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        return null;
+      }
+      await _apiClient.setAccessToken(accessToken);
+
+      // Call /auth/me endpoint
+      final response = await _apiClient.get('/auth/me');
+
+      // Handle different response formats
+      Map<String, dynamic>? userData;
+      if (response['data'] != null) {
+        userData = response['data'] as Map<String, dynamic>?;
+      } else if (response['user'] != null) {
+        userData = response['user'] as Map<String, dynamic>?;
+      } else {
+        userData = response;
+      }
+
+      if (userData == null) {
+        return null;
+      }
+
+      return User.fromJson(userData);
+    } on AppApiException catch (e) {
+      // If 401 or 403, user is not authenticated
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        // Clear invalid tokens
+        await _authStorage.clearTokens();
+        await _apiClient.clearAccessToken();
+        return null;
+      }
+      // Re-throw other errors
+      rethrow;
+    } catch (e) {
+      // On any error, return null (user not authenticated)
+      return null;
+    }
+  }
+
+  /// Logout user - clear all tokens
+  Future<void> logout() async {
+    await _authStorage.clearTokens();
+    await _apiClient.clearAccessToken();
+  }
+}
+

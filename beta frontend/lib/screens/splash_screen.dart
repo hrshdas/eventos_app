@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import '../widgets/eventos_logo_svg.dart';
-import '../api/api_client.dart';
+import '../core/api/api_client.dart';
 import '../auth/auth_repository.dart';
 import 'main_navigation_screen.dart';
 
@@ -98,11 +98,10 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     // Kick off a backend health check (non-blocking)
-    _api.health().then((res) {
-      _log('Backend health OK: $res');
-    }).catchError((e) {
-      _log('Backend health check failed: $e');
-    });
+    _api
+        .get('/health')
+        .then((res) => _log('Backend health OK: $res'))
+        .catchError((e) => _log('Backend health check failed: $e'));
 
     // Preload any existing session (non-blocking relative to animation)
     _authRepo.loadSessionIfAny().then((exists) {
@@ -114,7 +113,6 @@ class _SplashScreenState extends State<SplashScreen>
     // Navigate when animation completes
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        _api.close();
         final Widget next = _hasSession
             ? MainNavigationScreen(initialIndex: 0)
             : const LoginScreen();
@@ -127,7 +125,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _api.close();
     _controller.dispose();
     super.dispose();
   }

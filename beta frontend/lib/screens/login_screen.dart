@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'registration_screen.dart';
 import 'otp_verification_screen.dart';
 import 'main_navigation_screen.dart';
-import '../api/api_client.dart';
+import '../core/api/api_client.dart';
 import '../auth/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,6 +20,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   final ApiClient _api = ApiClient();
   late final AuthRepository _authRepo;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize auth repository once when the screen is created
+    _authRepo = AuthRepository(_api);
+  }
 
   @override
   void dispose() {
@@ -158,8 +165,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           setState(() => _loading = true);
                           try {
-                            // Defer repo init until first use
-                            _authRepo = _authRepo ?? AuthRepository(_api);
                             await _authRepo.login(email: email, password: password);
                             if (!mounted) return;
                             Navigator.pushReplacement(

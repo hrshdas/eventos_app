@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
-import '../api/api_client.dart';
+import '../core/api/api_client.dart';
 import '../auth/auth_repository.dart';
 import 'login_screen.dart';
+import 'create_listing_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -14,9 +15,34 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _currentIndex = 4; // Profile tab
+  Map<String, dynamic>? _user;
+  late final AuthRepository _authRepo;
+
+  bool get _isOwner =>
+      (_user?["role"]?.toString().toUpperCase() ?? '') == 'OWNER';
+
+  @override
+  void initState() {
+    super.initState();
+    _authRepo = AuthRepository(ApiClient());
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = await _authRepo.getStoredUser();
+    if (!mounted) return;
+    setState(() {
+      _user = user;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final name = (_user?["name"] as String?) ?? 'Guest User';
+    final email = (_user?["email"] as String?) ?? 'Not specified';
+    final phone = (_user?["phone"]?.toString()) ?? 'Not specified';
+    final location = (_user?["location"]?.toString()) ?? 'Not specified';
+
     final bg = AppTheme.lightGrey;
 
     return Scaffold(
@@ -26,17 +52,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Column(
             children: [
               // Header with overlay stats card
-              const _HeaderSection(),
-              const SizedBox(height: 70), // Space to accommodate the overlay stats card
+              _HeaderSection(user: _user),
+              SizedBox(height: 70), // Space to accommodate the overlay stats card
               // Content cards
-              const _PersonalInfoCard(),
-              const SizedBox(height: 16),
-              const _PreferencesCard(),
-              const SizedBox(height: 16),
-              const _UpcomingEventsCard(),
-              const SizedBox(height: 16),
-              const _AccountActionsList(),
-              const SizedBox(height: 24),
+              _PersonalInfoCard(user: _user),
+
+              SizedBox(height: 16),
+              _PreferencesCard(),
+              SizedBox(height: 16),
+              _UpcomingEventsCard(),
+              SizedBox(height: 16),
+              _AccountActionsList(isOwner: _isOwner),
+
+              SizedBox(height: 24),
             ],
           ),
         ),
@@ -65,12 +93,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _HeaderSection extends StatelessWidget {
-  const _HeaderSection();
+  final Map<String, dynamic>? user;
+
+  const _HeaderSection({super.key, this.user});
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     final headerHeight = 220.0;
+
     final sidePadding = 20.0;
 
     return Stack(
@@ -80,7 +110,7 @@ class _HeaderSection extends StatelessWidget {
         Container(
           width: double.infinity,
           height: headerHeight,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [Color(0xFFFF4F6D), Color(0xFFFF6B5A)],
               begin: Alignment.topLeft,
@@ -163,9 +193,9 @@ class _HeaderSection extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Raghav Gupta',
-                        style: TextStyle(
+                      Text(
+                        user?["name"] ?? 'Guest User',
+                        style: const TextStyle(
                           color: AppTheme.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -192,77 +222,17 @@ class _HeaderSection extends StatelessWidget {
           bottom: -56,
           left: sidePadding,
           right: sidePadding,
-          child: const _StatsCard(),
+          child: _StatsCard(),
         ),
       ],
-    );
-  }
-}
-
-class _StatsCard extends StatelessWidget {
-  const _StatsCard();
-
-  Widget _statItem(String count, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          count,
-          style: const TextStyle(
-            color: AppTheme.textDark,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.textGrey,
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withOpacity(0.9),
-      borderRadius: BorderRadius.circular(20),
-      elevation: 2,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Expanded(child: _statItem('12', 'Events booked')),
-            Container(
-              width: 1,
-              height: 32,
-              color: AppTheme.textGrey.withOpacity(0.25),
-            ),
-            Expanded(child: _statItem('4', 'Events hosted')),
-            Container(
-              width: 1,
-              height: 32,
-              color: AppTheme.textGrey.withOpacity(0.25),
-            ),
-            Expanded(child: _statItem('8', 'Favorites')),
-          ],
-        ),
-      ),
     );
   }
 }
 
 class _PersonalInfoCard extends StatelessWidget {
-  const _PersonalInfoCard();
+  final Map<String, dynamic>? user;
+
+  const _PersonalInfoCard({super.key, this.user});
 
   Widget _row(String label, String value) {
     return Padding(
@@ -345,303 +315,13 @@ class _PersonalInfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _row('Full Name', 'Raghav Gupta'),
+          _row('Full Name', user?["name"] ?? 'Guest User'),
           _divider(),
-          _row('Email', 'raghav@email.com'),
+          _row('Email', user?["email"] ?? 'Not specified'),
           _divider(),
-          _row('Phone', '+91 98765 43210'),
+          _row('Phone', user?["phone"]?.toString() ?? 'Not specified'),
           _divider(),
-          _row('Location', 'Bengaluru, India'),
-        ],
-      ),
-    );
-  }
-}
-
-class _PreferencesCard extends StatefulWidget {
-  const _PreferencesCard();
-
-  @override
-  State<_PreferencesCard> createState() => _PreferencesCardState();
-}
-
-class _PreferencesCardState extends State<_PreferencesCard> {
-  final List<_PrefChip> _chips = [
-    _PrefChip('Birthday Parties', selected: true, icon: Icons.cake),
-    _PrefChip('Corporate Events', selected: false, icon: Icons.work),
-    _PrefChip('Wedding', selected: true, icon: Icons.favorite),
-    _PrefChip('Home Decor', selected: false, icon: Icons.home),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Event Preferences',
-            style: TextStyle(
-              color: AppTheme.textDark,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tell us what you usually look for so we can recommend better packages.',
-            style: TextStyle(
-              color: AppTheme.textGrey.withOpacity(0.9),
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (int i = 0; i < _chips.length; i++)
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _chips[i] = _chips[i].copyWith(selected: !_chips[i].selected);
-                    });
-                  },
-                  child: _PreferenceChip(chip: _chips[i]),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PrefChip {
-  final String label;
-  final bool selected;
-  final IconData icon;
-
-  _PrefChip(this.label, {required this.selected, required this.icon});
-
-  _PrefChip copyWith({String? label, bool? selected, IconData? icon}) {
-    return _PrefChip(
-      label ?? this.label,
-      selected: selected ?? this.selected,
-      icon: icon ?? this.icon,
-    );
-  }
-}
-
-class _PreferenceChip extends StatelessWidget {
-  final _PrefChip chip;
-  const _PreferenceChip({required this.chip});
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = chip.selected;
-    final bg = selected ? const Color(0xFFFFE5E8) : const Color(0xFFF3F3F3);
-    final fg = selected ? AppTheme.primaryColor : AppTheme.textDark;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeInOut,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: selected ? AppTheme.primaryColor.withOpacity(0.45) : Colors.transparent,
-        ),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.12),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : [],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(chip.icon, size: 16, color: fg),
-          const SizedBox(width: 6),
-          Text(
-            chip.label,
-            style: TextStyle(
-              color: fg,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (selected) ...[
-            const SizedBox(width: 6),
-            const Icon(Icons.check_circle, size: 14, color: AppTheme.primaryColor),
-          ]
-        ],
-      ),
-    );
-  }
-}
-
-class _UpcomingEventsCard extends StatelessWidget {
-  const _UpcomingEventsCard();
-
-  Widget _statusPill(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.45)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _eventRow({
-    required String title,
-    required String subtitle,
-    required String imageUrl,
-    required String statusText,
-    required Color statusColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 44,
-              height: 44,
-              color: AppTheme.textGrey.withOpacity(0.2),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.image, size: 20, color: AppTheme.textGrey),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textGrey,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _statusPill(statusText, statusColor),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Title row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Upcoming Events',
-                style: TextStyle(
-                  color: AppTheme.textDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  // ignore: avoid_print
-                  print('View All upcoming tapped');
-                },
-                child: const Text(
-                  'View All',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _eventRow(
-            title: "Neha's Birthday Party",
-            subtitle: 'Sat, 21 Dec • 7:00 PM',
-            imageUrl:
-                'https://images.unsplash.com/photo-1507914372368-b2b085b925a1?w=400',
-            statusText: 'Confirmed',
-            statusColor: const Color(0xFF10B981), // green
-          ),
-          _eventRow(
-            title: 'Corporate Meet-up',
-            subtitle: 'Fri, 10 Jan • 6:30 PM',
-            imageUrl:
-                'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=400',
-            statusText: 'Pending',
-            statusColor: AppTheme.primaryColor,
-          ),
+          _row('Location', user?["location"]?.toString() ?? 'Not specified'),
         ],
       ),
     );
@@ -649,7 +329,9 @@ class _UpcomingEventsCard extends StatelessWidget {
 }
 
 class _AccountActionsList extends StatelessWidget {
-  const _AccountActionsList();
+  final bool isOwner;
+
+  const _AccountActionsList({super.key, required this.isOwner});
 
   Widget _item({
     required IconData icon,
@@ -719,6 +401,18 @@ class _AccountActionsList extends StatelessWidget {
           _item(icon: Icons.edit, label: 'Edit Profile'),
           _item(icon: Icons.credit_card, label: 'Payment Methods'),
           _item(icon: Icons.notifications, label: 'Notifications'),
+          if (isOwner)
+            _item(
+              icon: Icons.add_business,
+              label: 'Create Listing',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CreateListingScreen(),
+                  ),
+                );
+              },
+            ),
           _item(
             icon: Icons.support_agent,
             label: 'Help & Support',
@@ -753,10 +447,160 @@ class _AccountActionsList extends StatelessWidget {
               await auth.logout();
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                MaterialPageRoute(builder: (_) => LoginScreen()),
                 (route) => false,
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatsCard extends StatelessWidget {
+  const _StatsCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: const [
+          _StatItem(label: 'Bookings', value: '0'),
+          _StatItem(label: 'Wishlist', value: '0'),
+          _StatItem(label: 'Reviews', value: '0'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatItem({super.key, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.textGrey,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PreferencesCard extends StatelessWidget {
+  const _PreferencesCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Preferences',
+            style: TextStyle(
+              color: AppTheme.textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Customize your event recommendations and notifications.',
+            style: TextStyle(
+              color: AppTheme.textGrey,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpcomingEventsCard extends StatelessWidget {
+  const _UpcomingEventsCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'Upcoming Events',
+            style: TextStyle(
+              color: AppTheme.textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'You have no upcoming events yet.',
+            style: TextStyle(
+              color: AppTheme.textGrey,
+              fontSize: 13,
+            ),
           ),
         ],
       ),
@@ -773,7 +617,7 @@ class ProfileScreenContent extends StatelessWidget {
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
-          children: const [
+          children: [
             _HeaderSection(),
             SizedBox(height: 70),
             _PersonalInfoCard(),
@@ -782,7 +626,7 @@ class ProfileScreenContent extends StatelessWidget {
             SizedBox(height: 16),
             _UpcomingEventsCard(),
             SizedBox(height: 16),
-            _AccountActionsList(),
+            _AccountActionsList(isOwner: false),
             SizedBox(height: 24),
           ],
         ),

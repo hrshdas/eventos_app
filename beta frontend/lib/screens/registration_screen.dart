@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 import 'main_navigation_screen.dart';
-import '../api/api_client.dart';
+import '../core/api/api_client.dart';
 import '../auth/auth_repository.dart';
 
 class RegistrationScreen extends StatefulWidget {
@@ -23,6 +23,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _loading = false;
   final ApiClient _api = ApiClient();
   late final AuthRepository _authRepo;
+  String _selectedRole = 'CONSUMER';
 
   @override
   void initState() {
@@ -108,6 +109,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 hintText: 'Strong Password',
                 icon: Icons.lock_outline,
               ),
+              SizedBox(height: spacingMedium * 0.6),
+              // Role selection
+              _buildRoleSelector(),
               SizedBox(height: spacingSmall),
               // Terms and conditions
               Row(
@@ -187,7 +191,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           }
                           setState(() => _loading = true);
                           try {
-                            await _authRepo.signup(name: name, email: email, password: password);
+                            await _authRepo.signup(
+                              name: name,
+                              email: email,
+                              password: password,
+                              role: _selectedRole,
+                            );
                             if (!mounted) return;
                             Navigator.pushReplacement(
                               context,
@@ -400,6 +409,127 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 color: Colors.black87,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'I am registering as',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _RoleOptionTile(
+                title: 'Consumer',
+                subtitle: 'Book venues & services',
+                isSelected: _selectedRole == 'CONSUMER',
+                icon: Icons.event_available,
+                onTap: () {
+                  setState(() {
+                    _selectedRole = 'CONSUMER';
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _RoleOptionTile(
+                title: 'Owner',
+                subtitle: 'Create & manage listings',
+                isSelected: _selectedRole == 'OWNER',
+                icon: Icons.storefront,
+                onTap: () {
+                  setState(() {
+                    _selectedRole = 'OWNER';
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+}
+
+class _RoleOptionTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isSelected;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _RoleOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.isSelected,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor =
+        isSelected ? const Color(0xFFE53E3E) : Colors.grey.shade300;
+    final bgColor = isSelected ? const Color(0xFFFFE5E8) : Colors.white;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor, width: 1.4),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 22,
+                color: isSelected
+                    ? const Color(0xFFE53E3E)
+                    : Colors.grey.shade700),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle,
+                  size: 18, color: Color(0xFFE53E3E)),
           ],
         ),
       ),

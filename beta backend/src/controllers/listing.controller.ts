@@ -14,7 +14,11 @@ export const createListingController = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED',
+      });
     }
 
     const listing = await createListing({
@@ -70,6 +74,7 @@ export const getListingByIdController = async (
       return res.status(404).json({
         success: false,
         error: 'Listing not found',
+        code: 'NOT_FOUND',
       });
     }
 
@@ -89,7 +94,11 @@ export const updateListingController = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED',
+      });
     }
 
     const listing = await updateListing(req.params.id, req.body, req.user.id);
@@ -110,7 +119,11 @@ export const deleteListingController = async (
 ) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED',
+      });
     }
 
     await deleteListing(req.params.id, req.user.id, req.user.role);

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_client.dart';
+import '../core/api/api_client.dart';
 
 class AuthRepository {
   static const _kAccessTokenKey = 'access_token';
@@ -24,7 +24,8 @@ class AuthRepository {
   }
 
   Future<bool> login({required String email, required String password}) async {
-    final resp = await _api.postJson('/api/auth/login', body: {
+    // core ApiClient baseUrl already includes /api/v1
+    final resp = await _api.post('/auth/login', data: {
       'email': email,
       'password': password,
     });
@@ -53,7 +54,7 @@ class AuthRepository {
     required String password,
     String? role,
   }) async {
-    final resp = await _api.postJson('/api/auth/signup', body: {
+    final resp = await _api.post('/auth/signup', data: {
       'name': name,
       'email': email,
       'password': password,
@@ -83,7 +84,7 @@ class AuthRepository {
     if (refreshToken == null || refreshToken.isEmpty) {
       throw Exception('Missing refresh token');
     }
-    final resp = await _api.postJson('/api/auth/refresh', body: {
+    final resp = await _api.post('/auth/refresh', data: {
       'refreshToken': refreshToken,
     });
     final data = resp['data'] as Map<String, dynamic>?;

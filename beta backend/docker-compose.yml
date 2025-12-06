@@ -4,11 +4,11 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: beta
-      POSTGRES_PASSWORD: beta123
-      POSTGRES_DB: rental_marketplace
+      POSTGRES_USER: eventos
+      POSTGRES_PASSWORD: eventos123
+      POSTGRES_DB: eventos_db
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 volumes:
