@@ -32,9 +32,11 @@ export const requestLogger = (
     userAgent: req.get('user-agent'),
   });
 
-  // Override res.end to log response
-  const originalEnd = res.end;
-  res.end = function (chunk?: any, encoding?: any) {
+  // Keep original end method (bound to res)
+  const originalEnd = res.end.bind(res);
+
+  // Override res.end to log response – use `any` cast to avoid TS signature conflicts
+  (res as any).end = function (chunk?: any, encoding?: any, cb?: any) {
     const duration = Date.now() - startTime;
 
     logger.info('Request completed', {
@@ -46,9 +48,8 @@ export const requestLogger = (
     });
 
     // Call original end
-    originalEnd.call(this, chunk, encoding);
+    return originalEnd(chunk, encoding as any, cb);
   };
 
   next();
 };
-
