@@ -5,5 +5,5 @@
 // For iOS simulator, http://localhost:3000 works.
 // For Flutter Web dev, ensure CORS allows your origin (see backend CORS_ALLOWED_ORIGINS).
 
-const String apiBaseUrl = "http://192.168.1.43:3000";
+const String apiBaseUrl = "https://eventos-app-y5kf.onrender.com";
 
