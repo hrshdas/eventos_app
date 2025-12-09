@@ -12,10 +12,44 @@ const startServer = async () => {
     logger.info('Database connected successfully');
 
     // Start server
-    app.listen(config.port, () => {
-      logger.info(`Server is running on port ${config.port}`);
+    const port = config.port || 10000;
+    const host = '0.0.0.0';
+    app.listen(port, host, () => {
+      logger.info(`Server is running on http://${host}:${port}`);
       logger.info(`Environment: ${config.nodeEnv}`);
-      logger.info(`Health check: http://localhost:${config.port}/health`);
+      logger.info(`Health check: http://${host}:${port}/health`);
+
+      // Print basic route map
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const routes: string[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stack = (app as any)._router?.stack ?? [];
+      stack.forEach((layer: any) => {
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods)
+            .filter((m) => layer.route.methods[m])
+            .map((m) => m.toUpperCase())
+            .join(',');
+          routes.push(`${methods} ${layer.route.path}`);
+        } else if (layer.name === 'router' && layer.handle?.stack) {
+          const mountPath = layer.regexp?.fast_slash ? '' : (layer.regexp?.source || '');
+          layer.handle.stack.forEach((sublayer: any) => {
+            if (sublayer.route && sublayer.route.path) {
+              const methods = Object.keys(sublayer.route.methods)
+                .filter((m) => sublayer.route.methods[m])
+                .map((m) => m.toUpperCase())
+                .join(',');
+              routes.push(`${methods} ${mountPath} ${sublayer.route.path}`);
+            }
+          });
+        }
+      });
+      logger.info('Registered routes:\n' + routes.join('\n'));
+
+      // Sample URLs
+      logger.info('Sample URLs:');
+      logger.info(`- /api/health -> https://eventos-app-y5kf.onrender.com/api/health`);
+      logger.info(`- /api/listings -> https://eventos-app-y5kf.onrender.com/api/listings`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
@@ -37,4 +71,3 @@ process.on('SIGINT', async () => {
 });
 
 startServer();
-

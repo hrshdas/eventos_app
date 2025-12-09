@@ -19,31 +19,17 @@ export const createApp = (): Express => {
   // Middleware for webhook (must be before express.json())
   app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
-  // Middleware
+  // CORS - allow all origins temporarily + credentials (mobile/web/Postman)
   app.use(
     cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (mobile apps, Postman, etc.)
-        if (!origin) {
-          return callback(null, true);
-        }
-        // Check if origin is in allowed list
-        if (config.cors.allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        }
-        // Allow localhost with any port in development
-        if (config.nodeEnv === 'development' && origin.startsWith('http://localhost:')) {
-          return callback(null, true);
-        }
-        // Allow local IP addresses in development
-        if (config.nodeEnv === 'development' && /^http:\/\/192\.168\.\d+\.\d+:\d+$/.test(origin)) {
-          return callback(null, true);
-        }
-        callback(new Error('Not allowed by CORS'));
-      },
+      origin: true,
       credentials: true,
     })
   );
+  // Handle preflight requests
+  app.options('*', cors());
+
+  // Body parsers
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -52,11 +38,10 @@ export const createApp = (): Express => {
 
   // Health check
   app.get('/health', (req, res) => {
-    res.status(200).json({
-      success: true,
-      message: 'Server is running',
-      timestamp: new Date().toISOString(),
-    });
+    res.status(200).json({ status: 'ok' });
+  });
+  app.get('/api/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
   });
 
   // API Routes

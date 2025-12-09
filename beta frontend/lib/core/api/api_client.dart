@@ -39,6 +39,9 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          // Normalize path to avoid double /api
+          options.path = _normalizePath(options.path);
+
           // Get token from storage if not already loaded
           if (_accessToken == null) {
             _accessToken = await _authStorage.getAccessToken();
@@ -90,6 +93,19 @@ class ApiClient {
     );
   }
 
+  // Ensure we don't double-prefix /api and we always have a single leading slash
+  String _normalizePath(String path) {
+    var p = path.trim();
+    if (p.isEmpty) return '/';
+    if (!p.startsWith('/')) p = '/$p';
+    if (p.startsWith('/api/')) {
+      p = p.substring(4); // remove leading '/api'
+    } else if (p == '/api') {
+      p = '/';
+    }
+    return p;
+  }
+
   /// Set access token manually (useful after login)
   Future<void> setAccessToken(String? token) async {
     _accessToken = token;
@@ -130,7 +146,7 @@ class ApiClient {
       // Create a new Dio instance without interceptors to avoid recursion
       final refreshDio = Dio(_dio.options);
       final response = await refreshDio.post(
-        '/auth/refresh',
+        _normalizePath('/auth/refresh'),
         data: {'refreshToken': refreshToken},
       );
 
@@ -171,7 +187,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.get(
-        path,
+        _normalizePath(path),
         queryParameters: queryParameters,
         options: options,
       );
@@ -190,7 +206,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.post(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -210,7 +226,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.put(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -230,7 +246,7 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.delete(
-        path,
+        _normalizePath(path),
         data: data,
         queryParameters: queryParameters,
         options: options,
@@ -323,7 +339,7 @@ class ApiClient {
 
       // Use the interceptor-enabled dio instance - it will add Authorization header automatically
       final response = await _dio.post(
-        path,
+        _normalizePath(path),
         data: formData,
         queryParameters: queryParameters,
         options: requestOptions,
@@ -384,7 +400,7 @@ class ApiClient {
 
       // Use the interceptor-enabled dio instance - it will add Authorization header automatically
       final response = await _dio.patch(
-        path,
+        _normalizePath(path),
         data: formData,
         queryParameters: queryParameters,
         options: requestOptions,
@@ -400,4 +416,3 @@ class ApiClient {
   /// Get the underlying Dio instance (for advanced use cases)
   Dio get dio => _dio;
 }
-

@@ -22,8 +22,22 @@ class ApiClient {
     return headers;
   }
 
+  // Ensure we don't double-prefix /api and we always have a single leading slash
+  String _normalizePath(String path) {
+    var p = path.trim();
+    if (p.isEmpty) return '/';
+    if (!p.startsWith('/')) p = '/$p';
+    if (p.startsWith('/api/')) {
+      p = p.substring(4); // remove leading '/api'
+    } else if (p == '/api') {
+      p = '/';
+    }
+    return p;
+  }
+
   Uri _uri(String path, [Map<String, dynamic>? query]) {
-    return Uri.parse('$apiBaseUrl$path').replace(queryParameters: query);
+    final normalized = _normalizePath(path);
+    return Uri.parse('$apiBaseUrl$normalized').replace(queryParameters: query);
   }
 
   Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async {
@@ -47,13 +61,14 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> health() async {
+    // base already has /api -> this hits /api/health
     return getJson('/health');
   }
 
   Future<List<dynamic>> getListings({Map<String, dynamic>? query}) async {
-    final res = await _client.get(_uri('/api/listings', query), headers: _headers());
+    final res = await _client.get(_uri('/listings', query), headers: _headers());
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw Exception('GET /api/listings failed: ${res.statusCode} ${res.body}');
+      throw Exception('GET /listings failed: ${res.statusCode} ${res.body}');
     }
     final data = jsonDecode(res.body);
     if (data is List) return data;
