@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'registration_screen.dart';
 import 'otp_verification_screen.dart';
 import 'main_navigation_screen.dart';
-import '../core/api/api_client.dart';
-import '../auth/auth_repository.dart';
+import '../core/auth/auth_controller.dart';
+import '../features/auth/data/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,15 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = false;
   bool _obscurePassword = true;
   bool _loading = false;
-  final ApiClient _api = ApiClient();
-  late final AuthRepository _authRepo;
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize auth repository once when the screen is created
-    _authRepo = AuthRepository(_api);
-  }
+  final AuthRepository _authRepo = AuthRepository();
 
   @override
   void dispose() {
@@ -165,8 +158,29 @@ class _LoginScreenState extends State<LoginScreen> {
                           }
                           setState(() => _loading = true);
                           try {
-                            await _authRepo.login(email: email, password: password);
+                            debugPrint('LoginScreen: Starting login for: $email');
+                            
+                            // Login and get user
+                            final user = await _authRepo.login(email: email, password: password);
+                            debugPrint('LoginScreen: Login successful, user: ${user.name}, email: ${user.email}');
+                            
+                            // Update AuthController with user
+                            if (mounted) {
+                              final authController = Provider.of<AuthController>(context, listen: false);
+                              debugPrint('LoginScreen: Setting user in AuthController...');
+                              authController.setUser(user);
+                              debugPrint('LoginScreen: User set. Current user in controller: ${authController.currentUser?.name}');
+                              debugPrint('LoginScreen: isLoggedIn: ${authController.isLoggedIn}');
+                              
+                              // Wait a tiny bit to ensure listeners are notified
+                              await Future.delayed(const Duration(milliseconds: 100));
+                              
+                              // Verify user is still set
+                              debugPrint('LoginScreen: After delay, user: ${authController.currentUser?.name}');
+                            }
+                            
                             if (!mounted) return;
+                            debugPrint('LoginScreen: Navigating to MainNavigationScreen...');
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(

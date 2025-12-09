@@ -84,8 +84,10 @@ class Listing {
       category: json['category']?.toString() ?? 'other',
       price: json['price'] != null
           ? (json['price'] is num ? json['price'].toDouble() : double.tryParse(json['price'].toString()))
-          : null,
-      priceUnit: json['priceUnit']?.toString() ?? json['unit']?.toString(),
+          : json['pricePerDay'] != null
+              ? (json['pricePerDay'] is num ? json['pricePerDay'].toDouble() : double.tryParse(json['pricePerDay'].toString()))
+              : null,
+      priceUnit: json['priceUnit']?.toString() ?? json['unit']?.toString() ?? (json['pricePerDay'] != null ? 'day' : null),
       rating: json['rating'] != null
           ? (json['rating'] is num ? json['rating'].toDouble() : double.tryParse(json['rating'].toString()))
           : null,
@@ -195,7 +197,7 @@ class Listing {
   /// Get formatted price string
   String get formattedPrice {
     if (price == null) return 'Price on request';
-    final unit = priceUnit ?? '';
+    final unit = priceUnit ?? 'day';
     return '₹${price!.toStringAsFixed(0)}${unit.isNotEmpty ? '/$unit' : ''}';
   }
 }

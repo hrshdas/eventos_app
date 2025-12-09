@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/app_api_exception.dart';
 import '../../../core/auth/auth_storage.dart';
@@ -96,24 +97,36 @@ class AuthRepository {
         },
       );
 
+      // Debug: Print full response
+      debugPrint('AuthRepository.login: Full response: $response');
+      
       // Handle different response formats
       Map<String, dynamic>? data;
       if (response['data'] != null) {
         data = response['data'] as Map<String, dynamic>?;
+        debugPrint('AuthRepository.login: Found data in response.data');
       } else {
         data = response;
+        debugPrint('AuthRepository.login: Using response directly as data');
       }
 
       if (data == null) {
+        debugPrint('AuthRepository.login: ERROR - data is null!');
         throw AppApiException(
           message: 'Invalid login response',
           statusCode: 200,
         );
       }
 
+      debugPrint('AuthRepository.login: Extracted data: $data');
+      
       final accessToken = data['accessToken'] as String?;
       final refreshToken = data['refreshToken'] as String?;
       final userData = data['user'] as Map<String, dynamic>? ?? data;
+      
+      debugPrint('AuthRepository.login: accessToken: ${accessToken != null ? "present" : "null"}');
+      debugPrint('AuthRepository.login: refreshToken: ${refreshToken != null ? "present" : "null"}');
+      debugPrint('AuthRepository.login: userData: $userData');
 
       if (accessToken == null || refreshToken == null) {
         throw AppApiException(
@@ -131,8 +144,13 @@ class AuthRepository {
       // Update API client with access token
       await _apiClient.setAccessToken(accessToken);
 
+      // Debug: Print user data
+      debugPrint('AuthRepository.login: User data from login: $userData');
+      
       // Parse and return user
-      return User.fromJson(userData);
+      final user = User.fromJson(userData);
+      debugPrint('AuthRepository.login: Parsed user: ${user.name}, email: ${user.email}, role: ${user.role}');
+      return user;
     } on AppApiException {
       rethrow;
     } catch (e) {
@@ -216,8 +234,8 @@ class AuthRepository {
       }
       await _apiClient.setAccessToken(accessToken);
 
-      // Call /auth/me endpoint
-      final response = await _apiClient.get('/auth/me');
+      // Call /users/me endpoint (backend route is /users/me, not /auth/me)
+      final response = await _apiClient.get('/users/me');
 
       // Handle different response formats
       Map<String, dynamic>? userData;

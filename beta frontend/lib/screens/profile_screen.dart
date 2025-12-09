@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
-import '../core/api/api_client.dart';
-import '../auth/auth_repository.dart';
+import '../core/auth/auth_controller.dart';
 import 'login_screen.dart';
 import 'create_listing_screen.dart';
+import 'edit_profile_screen.dart';
+import '../features/listings/presentation/my_listings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   ProfileScreen({super.key});
@@ -15,85 +17,105 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _currentIndex = 4; // Profile tab
-  Map<String, dynamic>? _user;
-  late final AuthRepository _authRepo;
-
-  bool get _isOwner =>
-      (_user?["role"]?.toString().toUpperCase() ?? '') == 'OWNER';
 
   @override
   void initState() {
     super.initState();
-    _authRepo = AuthRepository(ApiClient());
-    _loadUser();
-  }
-
-  Future<void> _loadUser() async {
-    final user = await _authRepo.getStoredUser();
-    if (!mounted) return;
-    setState(() {
-      _user = user;
+    // Refresh user data when screen loads (only if we don't have a user)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authController = Provider.of<AuthController>(context, listen: false);
+      // Only refresh if we don't have a user yet
+      if (authController.currentUser == null) {
+        debugPrint('ProfileScreen: No user found, refreshing...');
+        authController.refreshUser();
+      } else {
+        debugPrint('ProfileScreen: User already exists: ${authController.currentUser?.name}');
+        // Optionally refresh to get latest data (phone, etc.) but don't wait for it
+        authController.refreshUser().catchError((e) {
+          debugPrint('ProfileScreen: Refresh failed but keeping existing user: $e');
+        });
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final name = (_user?["name"] as String?) ?? 'Guest User';
-    final email = (_user?["email"] as String?) ?? 'Not specified';
-    final phone = (_user?["phone"]?.toString()) ?? 'Not specified';
-    final location = (_user?["location"]?.toString()) ?? 'Not specified';
+    return Consumer<AuthController>(
+      builder: (context, authController, _) {
+        final user = authController.currentUser;
+        final isOwner = user?.role?.toUpperCase() == 'OWNER';
+        
+        // Debug: Print user data
+        if (user != null) {
+          debugPrint('ProfileScreen: Building with user: ${user.name}, email: ${user.email}, role: ${user.role}');
+        } else {
+          debugPrint('ProfileScreen: Building with null user, isLoading: ${authController.isLoading}');
+        }
+        
+        // Show loading if auth is still initializing
+        if (authController.isLoading && user == null) {
+          return Scaffold(
+            backgroundColor: AppTheme.lightGrey,
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    final bg = AppTheme.lightGrey;
+        return Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Header with overlay stats card
+                  _HeaderSection(user: user),
+                  SizedBox(height: 70), // Space to accommodate the overlay stats card
+                  // Content cards
+                  _PersonalInfoCard(user: user),
 
-    return Scaffold(
-      backgroundColor: bg,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Header with overlay stats card
-              _HeaderSection(user: _user),
-              SizedBox(height: 70), // Space to accommodate the overlay stats card
-              // Content cards
-              _PersonalInfoCard(user: _user),
+                  SizedBox(height: 16),
+                  if (isOwner) ...[
+                    _MyListingsSection(),
+                    SizedBox(height: 16),
+                  ],
+                  _PreferencesCard(),
+                  SizedBox(height: 16),
+                  _UpcomingEventsCard(),
+                  SizedBox(height: 16),
+                  _AccountActionsList(isOwner: isOwner, user: user),
 
-              SizedBox(height: 16),
-              _PreferencesCard(),
-              SizedBox(height: 16),
-              _UpcomingEventsCard(),
-              SizedBox(height: 16),
-              _AccountActionsList(isOwner: _isOwner),
-
-              SizedBox(height: 24),
+                  SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              // Use central navigation to switch tabs in MainNavigationScreen
+              // Map index: Home=0, AI Planner=1, My Events=2, Profile=3
+              int mainIndex = index == 0 ? 0 : (index == 1 ? 1 : (index == 2 ? 2 : 3));
+              NavigationHelper.navigateToMainScreen(context, mainIndex);
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: AppTheme.primaryColor,
+            unselectedItemColor: AppTheme.textGrey,
+            backgroundColor: AppTheme.white,
+            elevation: 8,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+              BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'AI Planner'),
+              BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'My Events'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
             ],
           ),
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          // Use central navigation to switch tabs in MainNavigationScreen
-          NavigationHelper.navigateToMainScreen(context, index);
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: AppTheme.textGrey,
-        backgroundColor: AppTheme.white,
-        elevation: 8,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'AI Planner'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'My Events'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 class _HeaderSection extends StatelessWidget {
-  final Map<String, dynamic>? user;
+  final dynamic user; // User model from AuthController
 
   const _HeaderSection({super.key, this.user});
 
@@ -179,12 +201,12 @@ class _HeaderSection extends StatelessWidget {
                             ),
                           ],
                         ),
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 40,
                           backgroundColor: AppTheme.darkGrey,
                           child: Text(
-                            'RG',
-                            style: TextStyle(
+                            user?.initials ?? 'GU',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.w700,
@@ -194,7 +216,7 @@ class _HeaderSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        user?["name"] ?? 'Guest User',
+                        user?.name ?? 'Guest User',
                         style: const TextStyle(
                           color: AppTheme.white,
                           fontSize: 18,
@@ -203,7 +225,7 @@ class _HeaderSection extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Event Enthusiast',
+                        user?.role == 'OWNER' ? 'Owner' : 'Event Enthusiast',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.85),
                           fontSize: 12.5,
@@ -230,7 +252,7 @@ class _HeaderSection extends StatelessWidget {
 }
 
 class _PersonalInfoCard extends StatelessWidget {
-  final Map<String, dynamic>? user;
+  final dynamic user; // User model from AuthController
 
   const _PersonalInfoCard({super.key, this.user});
 
@@ -300,8 +322,11 @@ class _PersonalInfoCard extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  // ignore: avoid_print
-                  print('Edit personal info tapped');
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  );
                 },
                 child: const Text(
                   'Edit',
@@ -315,13 +340,91 @@ class _PersonalInfoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _row('Full Name', user?["name"] ?? 'Guest User'),
+          _row('Full Name', user?.name ?? 'Guest User'),
           _divider(),
-          _row('Email', user?["email"] ?? 'Not specified'),
+          _row('Email', user?.email ?? 'Not specified'),
           _divider(),
-          _row('Phone', user?["phone"]?.toString() ?? 'Not specified'),
+          _row('Phone', user?.phone ?? 'Not specified'),
           _divider(),
-          _row('Location', user?["location"]?.toString() ?? 'Not specified'),
+          _row('Role', user?.role ?? 'CONSUMER'),
+        ],
+      ),
+    );
+  }
+}
+
+class _MyListingsSection extends StatelessWidget {
+  const _MyListingsSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'My Listings',
+                style: TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MyListingsScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'View All',
+                  style: TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CreateListingScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('Create New Listing'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: AppTheme.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -330,8 +433,9 @@ class _PersonalInfoCard extends StatelessWidget {
 
 class _AccountActionsList extends StatelessWidget {
   final bool isOwner;
+  final dynamic user; // User model from AuthController
 
-  const _AccountActionsList({super.key, required this.isOwner});
+  const _AccountActionsList({super.key, required this.isOwner, this.user});
 
   Widget _item({
     required IconData icon,
@@ -398,7 +502,17 @@ class _AccountActionsList extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _item(icon: Icons.edit, label: 'Edit Profile'),
+          _item(
+            icon: Icons.edit,
+            label: 'Edit Profile',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const EditProfileScreen(),
+                ),
+              );
+            },
+          ),
           _item(icon: Icons.credit_card, label: 'Payment Methods'),
           _item(icon: Icons.notifications, label: 'Notifications'),
           if (isOwner)
@@ -408,7 +522,7 @@ class _AccountActionsList extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => CreateListingScreen(),
+                    builder: (_) => const CreateListingScreen(),
                   ),
                 );
               },
@@ -442,12 +556,11 @@ class _AccountActionsList extends StatelessWidget {
               );
               if (confirm != true) return;
               // Perform logout
-              final api = ApiClient();
-              final auth = AuthRepository(api);
-              await auth.logout();
+              final authController = Provider.of<AuthController>(context, listen: false);
+              await authController.logout();
               if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => LoginScreen()),
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
               );
             },
@@ -609,28 +722,83 @@ class _UpcomingEventsCard extends StatelessWidget {
 }
 
 // Content-only version for use inside MainNavigationScreen tab (no Scaffold/BottomNav)
-class ProfileScreenContent extends StatelessWidget {
+class ProfileScreenContent extends StatefulWidget {
   const ProfileScreenContent({super.key});
 
   @override
+  State<ProfileScreenContent> createState() => _ProfileScreenContentState();
+}
+
+class _ProfileScreenContentState extends State<ProfileScreenContent> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh user data when screen loads (only if we don't have a user)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authController = Provider.of<AuthController>(context, listen: false);
+      // Only refresh if we don't have a user yet
+      if (authController.currentUser == null) {
+        debugPrint('ProfileScreenContent: No user found, refreshing...');
+        authController.refreshUser();
+      } else {
+        debugPrint('ProfileScreenContent: User already exists: ${authController.currentUser?.name}');
+        // Optionally refresh to get latest data (phone, etc.) but don't wait for it
+        authController.refreshUser().catchError((e) {
+          debugPrint('ProfileScreenContent: Refresh failed but keeping existing user: $e');
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            _HeaderSection(),
-            SizedBox(height: 70),
-            _PersonalInfoCard(),
-            SizedBox(height: 16),
-            _PreferencesCard(),
-            SizedBox(height: 16),
-            _UpcomingEventsCard(),
-            SizedBox(height: 16),
-            _AccountActionsList(isOwner: false),
-            SizedBox(height: 24),
-          ],
-        ),
-      ),
+    debugPrint('ProfileScreenContent.build: Called');
+    return Consumer<AuthController>(
+      builder: (context, authController, _) {
+        final user = authController.currentUser;
+        final isOwner = user?.role?.toUpperCase() == 'OWNER';
+        
+        // Debug: Print user data
+        debugPrint('ProfileScreenContent: Consumer builder called');
+        debugPrint('ProfileScreenContent: authController.isLoggedIn: ${authController.isLoggedIn}');
+        debugPrint('ProfileScreenContent: authController.isLoading: ${authController.isLoading}');
+        if (user != null) {
+          debugPrint('ProfileScreenContent: Building with user: ${user.name}, email: ${user.email}, role: ${user.role}');
+        } else {
+          debugPrint('ProfileScreenContent: Building with null user');
+        }
+        
+        // Show loading if auth is still initializing
+        if (authController.isLoading && user == null) {
+          debugPrint('ProfileScreenContent: Showing loading indicator');
+          return const SafeArea(
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _HeaderSection(user: user),
+                SizedBox(height: 70),
+                _PersonalInfoCard(user: user),
+                SizedBox(height: 16),
+                if (isOwner) ...[
+                  _MyListingsSection(),
+                  SizedBox(height: 16),
+                ],
+                _PreferencesCard(),
+                SizedBox(height: 16),
+                _UpcomingEventsCard(),
+                SizedBox(height: 16),
+                _AccountActionsList(isOwner: isOwner, user: user),
+                SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

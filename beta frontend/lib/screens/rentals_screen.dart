@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
-import '../widgets/eventos_logo_svg.dart';
+import '../widgets/shared_header_card.dart';
+import '../features/listings/data/listings_repository.dart';
+import '../features/listings/domain/models/listing.dart';
+import '../core/api/app_api_exception.dart';
 
 class RentalsScreen extends StatefulWidget {
   const RentalsScreen({super.key});
@@ -24,7 +27,16 @@ class _RentalsScreenState extends State<RentalsScreen> {
           child: Column(
             children: [
               const SizedBox(height: 8),
-              const _RentalsHeader(),
+              SharedHeaderCard(
+                backgroundGradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFF4F6D),
+                    Color(0xFFFF6B5A),
+                  ],
+                ),
+              ),
               const SizedBox(height: 16),
               _FilterTabsRow(
                 selectedIndex: _selectedFilterIndex,
@@ -35,9 +47,9 @@ class _RentalsScreenState extends State<RentalsScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              const _RentalsGrid(),
+              _RentalsGrid(),
               const SizedBox(height: 24),
-              const _RecommendedSection(),
+              _RecommendedSection(),
               const SizedBox(height: 80), // Space for bottom nav
             ],
           ),
@@ -52,9 +64,11 @@ class _RentalsScreenState extends State<RentalsScreen> {
       currentIndex: _currentIndex,
       onTap: (index) {
         // Navigate back to MainNavigationScreen with the selected index
+        // Map index: Home=0, AI Planner=1, My Events=2, Profile=3
+        int mainIndex = index == 0 ? 0 : (index == 1 ? 1 : (index == 2 ? 2 : 3));
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => MainNavigationScreen(initialIndex: index),
+            builder: (context) => MainNavigationScreen(initialIndex: mainIndex),
           ),
           (route) => false,
         );
@@ -74,10 +88,6 @@ class _RentalsScreenState extends State<RentalsScreen> {
           label: 'AI Planner',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart),
-          label: 'Cart',
-        ),
-        BottomNavigationBarItem(
           icon: Icon(Icons.calendar_today),
           label: 'My Events',
         ),
@@ -86,216 +96,6 @@ class _RentalsScreenState extends State<RentalsScreen> {
           label: 'Profile',
         ),
       ],
-    );
-  }
-}
-
-// Rentals Header with Pink Background
-class _RentalsHeader extends StatelessWidget {
-  const _RentalsHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFF4F6D),
-            Color(0xFFFF6B5A),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Welcome and Location
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Hi, Welcome ',
-                style: TextStyle(
-                  color: AppTheme.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: AppTheme.white,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Mumbai, India',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Row 2: App Logo
-          const EventosLogoSvg(height: 36, color: AppTheme.white),
-          const SizedBox(height: 16),
-          // Row 3: Search Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.search,
-                  color: AppTheme.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Search BBQ grill, DJ, tents...',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.shopping_cart,
-                        color: AppTheme.white,
-                        size: 20,
-                      ),
-                    ),
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '3',
-                            style: TextStyle(
-                              color: AppTheme.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Row 4: Filter Chips
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Event date',
-                          style: const TextStyle(
-                            color: AppTheme.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'City / pin code',
-                          style: const TextStyle(
-                            color: AppTheme.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
@@ -370,41 +170,101 @@ class _FilterTabsRow extends StatelessWidget {
 }
 
 // Rentals Grid Section
-class _RentalsGrid extends StatelessWidget {
+class _RentalsGrid extends StatefulWidget {
   const _RentalsGrid();
 
   @override
+  State<_RentalsGrid> createState() => _RentalsGridState();
+}
+
+class _RentalsGridState extends State<_RentalsGrid> {
+  final ListingsRepository _repository = ListingsRepository();
+  List<Listing> _listings = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadListings();
+  }
+
+  Future<void> _loadListings() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final listings = await _repository.getListings(
+        filters: {'category': 'rental'},
+      );
+      if (mounted) {
+        setState(() {
+          _listings = listings;
+          _isLoading = false;
+        });
+      }
+    } on AppApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load rentals: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rentalItems = [
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-    ];
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _loadListings,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_listings.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(
+          child: Text(
+            'No rentals available',
+            style: TextStyle(color: AppTheme.textGrey),
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -417,14 +277,16 @@ class _RentalsGrid extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         ),
-        itemCount: rentalItems.length,
+        itemCount: _listings.length,
         itemBuilder: (context, index) {
+          final listing = _listings[index];
           return _RentalCard(
-            title: rentalItems[index]['title'] as String,
-            rating: rentalItems[index]['rating'] as double,
-            reviews: rentalItems[index]['reviews'] as int,
-            price: rentalItems[index]['price'] as String,
-            imageUrl: rentalItems[index]['imageUrl'] as String,
+            title: listing.title,
+            rating: listing.rating ?? 0.0,
+            reviews: listing.reviewCount ?? 0,
+            price: listing.formattedPrice,
+            imageUrl: listing.primaryImageUrl ?? '',
+            listingId: listing.id,
           );
         },
       ),
@@ -439,6 +301,7 @@ class _RentalCard extends StatelessWidget {
   final int reviews;
   final String price;
   final String imageUrl;
+  final String? listingId;
 
   const _RentalCard({
     required this.title,
@@ -446,6 +309,7 @@ class _RentalCard extends StatelessWidget {
     required this.reviews,
     required this.price,
     required this.imageUrl,
+    this.listingId,
   });
 
   @override
@@ -615,27 +479,49 @@ class _RentalCard extends StatelessWidget {
 }
 
 // Recommended Section
-class _RecommendedSection extends StatelessWidget {
+class _RecommendedSection extends StatefulWidget {
   const _RecommendedSection();
 
   @override
+  State<_RecommendedSection> createState() => _RecommendedSectionState();
+}
+
+class _RecommendedSectionState extends State<_RecommendedSection> {
+  final ListingsRepository _repository = ListingsRepository();
+  List<Listing> _recommendedListings = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecommended();
+  }
+
+  Future<void> _loadRecommended() async {
+    try {
+      final listings = await _repository.getListings(
+        filters: {'category': 'rental', 'limit': '2'},
+      );
+      if (mounted) {
+        setState(() {
+          _recommendedListings = listings.take(2).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final recommendedItems = [
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-    ];
+    if (_isLoading || _recommendedListings.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,25 +542,30 @@ class _RecommendedSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              Expanded(
-                child: _RentalCard(
-                  title: recommendedItems[0]['title'] as String,
-                  rating: recommendedItems[0]['rating'] as double,
-                  reviews: recommendedItems[0]['reviews'] as int,
-                  price: recommendedItems[0]['price'] as String,
-                  imageUrl: recommendedItems[0]['imageUrl'] as String,
+              if (_recommendedListings.isNotEmpty)
+                Expanded(
+                  child: _RentalCard(
+                    title: _recommendedListings[0].title,
+                    rating: _recommendedListings[0].rating ?? 0.0,
+                    reviews: _recommendedListings[0].reviewCount ?? 0,
+                    price: _recommendedListings[0].formattedPrice,
+                    imageUrl: _recommendedListings[0].primaryImageUrl ?? '',
+                    listingId: _recommendedListings[0].id,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _RentalCard(
-                  title: recommendedItems[1]['title'] as String,
-                  rating: recommendedItems[1]['rating'] as double,
-                  reviews: recommendedItems[1]['reviews'] as int,
-                  price: recommendedItems[1]['price'] as String,
-                  imageUrl: recommendedItems[1]['imageUrl'] as String,
+              if (_recommendedListings.length > 1) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _RentalCard(
+                    title: _recommendedListings[1].title,
+                    rating: _recommendedListings[1].rating ?? 0.0,
+                    reviews: _recommendedListings[1].reviewCount ?? 0,
+                    price: _recommendedListings[1].formattedPrice,
+                    imageUrl: _recommendedListings[1].primaryImageUrl ?? '',
+                    listingId: _recommendedListings[1].id,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

@@ -30,9 +30,12 @@ export interface AuthResponse {
 export const signup = async (data: SignupData): Promise<AuthResponse> => {
   const { name, email, password, role = UserRole.CONSUMER } = data;
 
+  // Normalize email to avoid case/whitespace issues
+  const normalizedEmail = email.trim().toLowerCase();
+
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
   });
 
   if (existingUser) {
@@ -48,7 +51,7 @@ export const signup = async (data: SignupData): Promise<AuthResponse> => {
   const user = await prisma.user.create({
     data: {
       name,
-      email,
+      email: normalizedEmail,
       passwordHash,
       role,
     },
@@ -73,12 +76,16 @@ export const signup = async (data: SignupData): Promise<AuthResponse> => {
 export const login = async (data: LoginData): Promise<AuthResponse> => {
   const { email, password } = data;
 
+  // Normalize email to avoid case/whitespace issues
+  const normalizedEmail = email.trim().toLowerCase();
+
   // Find user
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
   });
 
   if (!user) {
+    console.warn(`[auth] Login failed: user not found for email: ${normalizedEmail}`);
     const error: ApiError = new Error('Invalid email or password');
     error.statusCode = 401;
     throw error;
@@ -88,6 +95,7 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
   const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
   if (!isValidPassword) {
+    console.warn(`[auth] Login failed: invalid password for email: ${normalizedEmail}`);
     const error: ApiError = new Error('Invalid email or password');
     error.statusCode = 401;
     throw error;
@@ -108,4 +116,3 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
     refreshToken,
   };
 };
-

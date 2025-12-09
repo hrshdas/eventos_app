@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/app_api_exception.dart';
 import '../domain/models/listing.dart';
@@ -128,6 +129,12 @@ class ListingsRepository {
           statusCode: 400,
         );
       }
+      if (pincode.isEmpty) {
+        throw AppApiException(
+          message: 'Pincode is required',
+          statusCode: 400,
+        );
+      }
       if (price == null || price <= 0) {
         throw AppApiException(
           message: 'Price must be greater than 0',
@@ -135,17 +142,29 @@ class ListingsRepository {
         );
       }
 
-      // Combine city and pincode for location
-      final location = '$city, $pincode';
-
-      // Prepare form data - only send fields that backend expects
+      // Prepare form data - match backend API expectations
+      // Backend expects: title, description, category, city, pincode, date, time (optional), price (optional), capacity (optional)
+      // Note: When using FormData, Dio converts all values to strings
       final formData = <String, dynamic>{
         'title': title,
         'description': description,
         'category': category,
-        'location': location,
-        'pricePerDay': price.toInt(), // Convert to integer as backend expects
+        'city': city,
+        'pincode': pincode,
+        'date': date.toIso8601String(),
+        'price': price.toInt(), // Send as int - Dio FormData will convert to string automatically
       };
+
+      // Add optional fields if provided
+      if (time != null && time.isNotEmpty) {
+        formData['time'] = time;
+      }
+      if (capacity != null && capacity > 0) {
+        formData['capacity'] = capacity;
+      }
+      
+      debugPrint('ListingsRepository.createListing: Sending formData: $formData');
+      debugPrint('ListingsRepository.createListing: Files count: ${files?.length ?? 0}');
 
       final response = await _apiClient.postMultipart(
         '/listings',
@@ -249,31 +268,19 @@ class ListingsRepository {
   }
 
   /// Get all listings created by the current user
-  Future<List<Listing>> getMyListings({Map<String, dynamic>? filters}) async {
+  /// Note: Backend needs ownerId to be passed. This method should be called with ownerId in filters.
+  /// Alternatively, backend could implement GET /listings/my endpoint
+  Future<List<Listing>> getMyListings({Map<String, dynamic>? filters, String? ownerId}) async {
     try {
-      final response = await _apiClient.get(
-        '/listings/my',
-        queryParameters: filters,
-      );
-
-      // Handle different response formats
-      List<dynamic> listingsData;
-      if (response['data'] is Map && (response['data'] as Map)['listings'] is List) {
-        // Response format: { data: { listings: [...] } }
-        listingsData = (response['data'] as Map)['listings'] as List<dynamic>;
-      } else if (response['data'] is List) {
-        listingsData = response['data'] as List<dynamic>;
-      } else if (response['listings'] is List) {
-        listingsData = response['listings'] as List<dynamic>;
-      } else if (response is List<dynamic>) {
-        listingsData = response as List<dynamic>;
-      } else {
-        listingsData = [];
+      final queryParams = Map<String, dynamic>.from(filters ?? {});
+      
+      // Add ownerId to query if provided
+      if (ownerId != null) {
+        queryParams['ownerId'] = ownerId;
       }
-
-      return listingsData
-          .map((json) => Listing.fromJson(json as Map<String, dynamic>))
-          .toList();
+      
+      // Use the standard getListings method with ownerId filter
+      return await getListings(filters: queryParams);
     } on AppApiException {
       rethrow;
     } catch (e) {

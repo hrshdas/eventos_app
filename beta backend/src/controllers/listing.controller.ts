@@ -6,6 +6,7 @@ import {
   updateListing,
   deleteListing,
 } from '../services/listing.service';
+import { saveListingImages } from '../utils/fileUpload';
 
 export const createListingController = async (
   req: Request,
@@ -21,9 +22,66 @@ export const createListingController = async (
       });
     }
 
+    // Transform frontend format to backend format
+    const body = req.body;
+    
+    // Handle price: frontend sends 'price', backend expects 'pricePerDay'
+    const pricePerDay = body.pricePerDay ?? body.price;
+    if (pricePerDay === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Price is required',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    // Handle location: frontend sends 'city' and 'pincode', backend expects 'location'
+    let location = body.location;
+    if (!location && body.city && body.pincode) {
+      location = `${body.city}, ${body.pincode}`;
+    }
+    if (!location) {
+      return res.status(400).json({
+        success: false,
+        error: 'Location is required (provide either location or both city and pincode)',
+        code: 'VALIDATION_ERROR',
+      });
+    }
+
+    // Convert price to number if it's a string (from FormData)
+    const priceValue = typeof pricePerDay === 'string' 
+      ? parseInt(pricePerDay, 10) 
+      : pricePerDay;
+
+    // Handle image uploads
+    const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+    let imageUrls: string[] = [];
+    
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      // Filter only image files (fieldname should be 'images')
+      const imageFiles = uploadedFiles.filter(
+        file => file.fieldname === 'images' && file.mimetype.startsWith('image/')
+      );
+      
+      if (imageFiles.length > 0) {
+        imageUrls = await saveListingImages(imageFiles, req);
+      }
+    }
+
+    // If images were provided in body (existing URLs), merge with uploaded ones
+    if (body.images && Array.isArray(body.images)) {
+      imageUrls = [...imageUrls, ...body.images];
+    }
+
     const listing = await createListing({
-      ...req.body,
+      title: body.title,
+      description: body.description,
+      category: body.category,
+      pricePerDay: priceValue,
+      location: location,
+      images: imageUrls,
       ownerId: req.user.id,
+      userRole: req.user.role, // Pass role for auto-approval
     });
 
     res.status(201).json({

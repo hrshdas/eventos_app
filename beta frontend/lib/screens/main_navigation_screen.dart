@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../core/auth/auth_controller.dart';
 import 'home_screen.dart';
 import 'event_screen.dart';
 import 'profile_screen.dart';
-import 'cart_screen.dart';
 import 'ai_planner_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -24,57 +25,60 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     _currentIndex = widget.initialIndex ?? 0;
   }
 
-  final List<Widget> _screens = [
-    const HomeScreenContent(),
-    const AiPlannerScreenContent(),
-    const CartScreenContent(),
-    const EventScreenContent(),
-    const ProfileScreenContent(),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.lightGrey,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: AppTheme.textGrey,
-        backgroundColor: AppTheme.white,
-        elevation: 8,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
+    // Use Consumer to rebuild when AuthController changes (when user logs in)
+    return Consumer<AuthController>(
+      builder: (context, authController, _) {
+        // Get user ID to use as key for ProfileScreenContent - forces rebuild when user changes
+        final userKey = authController.currentUser?.id ?? 'no-user';
+        
+        final screens = [
+          const HomeScreenContent(),
+          const AiPlannerScreenContent(),
+          const EventScreenContent(),
+          ProfileScreenContent(key: ValueKey('profile-$userKey')), // Key changes when user changes
+        ];
+        
+        return Scaffold(
+          backgroundColor: AppTheme.lightGrey,
+          body: IndexedStack(
+            index: _currentIndex,
+            children: screens,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bolt),
-            label: 'AI Planner',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: AppTheme.primaryColor,
+            unselectedItemColor: AppTheme.textGrey,
+            backgroundColor: AppTheme.white,
+            elevation: 8,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.bolt),
+                label: 'AI Planner',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today),
+                label: 'My Events',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Cart',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'My Events',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

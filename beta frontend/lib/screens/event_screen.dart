@@ -5,7 +5,7 @@ import 'rentals_screen.dart';
 import 'talent_staff_screen.dart';
 import 'packages_screen.dart';
 import 'main_navigation_screen.dart';
-import '../widgets/eventos_logo_svg.dart';
+import '../widgets/shared_header_card.dart';
 
 class EventScreen extends StatefulWidget {
   const EventScreen({super.key});
@@ -28,7 +28,7 @@ class _EventScreenState extends State<EventScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  const _HeaderCard(),
+                  const SharedHeaderCard(),
                   const SizedBox(height: 24),
                   const _BrowseCategoriesSection(),
                   const SizedBox(height: 24),
@@ -132,7 +132,7 @@ class EventScreenContent extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                const _HeaderCard(),
+                const SharedHeaderCard(),
                 const SizedBox(height: 24),
                 const _BrowseCategoriesSection(),
                 const SizedBox(height: 24),
@@ -174,194 +174,6 @@ class EventScreenContent extends StatelessWidget {
                 const SizedBox(height: 80), // Space for bottom nav
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Header Card Widget (same style as HomeScreen)
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.darkNavy,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Welcome and Location
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Hi, Welcome ',
-                style: AppTheme.welcomeText,
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppTheme.darkGrey,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: AppTheme.white,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Mumbai, India',
-                      style: AppTheme.locationText,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Row 2: App Logo
-          const SizedBox(height: 8),
-          const EventosLogoSvg(height: 36, color: AppTheme.white),
-          const SizedBox(height: 16),
-          // Row 3: Search Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.darkGrey,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.search,
-                  color: AppTheme.textGrey,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Search BBQ grill, DJ, tents...',
-                    style: TextStyle(
-                      color: AppTheme.textGrey,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.shopping_cart,
-                        color: AppTheme.white,
-                        size: 20,
-                      ),
-                    ),
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '3',
-                            style: TextStyle(
-                              color: AppTheme.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Row 4: Filter Chips
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.darkGrey,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Event date',
-                          style: AppTheme.locationText,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.darkGrey,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'City / pin code',
-                          style: AppTheme.locationText,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),

@@ -65,7 +65,8 @@ class _ListingsListState extends State<ListingsList> {
     });
 
     try {
-      final filters = widget.filters ?? {};
+      // Create a mutable copy of filters to avoid "Cannot modify unmodifiable map" error
+      final filters = Map<String, dynamic>.from(widget.filters ?? {});
       if (widget.itemLimit != null) {
         filters['limit'] = widget.itemLimit;
       }

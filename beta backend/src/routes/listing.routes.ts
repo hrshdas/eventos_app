@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   createListingController,
   getListingsController,
@@ -12,6 +13,15 @@ import { createListingSchema, updateListingSchema } from '../validation/listing.
 
 const router = Router();
 
+// Configure multer for file uploads (in memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    fieldSize: 10 * 1024 * 1024, // 10MB limit per field
+  },
+});
+
 // Public routes
 router.get('/', getListingsController);
 router.get('/:id', getListingByIdController);
@@ -21,6 +31,7 @@ router.post(
   '/',
   authMiddleware,
   requireRole('OWNER', 'ADMIN'),
+  upload.any(), // Parse all fields and files from multipart/form-data
   validateRequest(createListingSchema),
   createListingController
 );

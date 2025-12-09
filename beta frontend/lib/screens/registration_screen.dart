@@ -1,10 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 import 'main_navigation_screen.dart';
-import '../core/api/api_client.dart';
-import '../auth/auth_repository.dart';
+import '../core/auth/auth_controller.dart';
+import '../features/auth/data/auth_repository.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -21,15 +22,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _agreeToTerms = false;
   bool _obscurePassword = true;
   bool _loading = false;
-  final ApiClient _api = ApiClient();
-  late final AuthRepository _authRepo;
+  final AuthRepository _authRepo = AuthRepository();
   String _selectedRole = 'CONSUMER';
-
-  @override
-  void initState() {
-    super.initState();
-    _authRepo = AuthRepository(_api);
-  }
 
   @override
   void dispose() {
@@ -191,12 +185,28 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           }
                           setState(() => _loading = true);
                           try {
-                            await _authRepo.signup(
+                            // Signup and get user
+                            final user = await _authRepo.signup(
                               name: name,
                               email: email,
                               password: password,
                               role: _selectedRole,
                             );
+                            
+                            // Update AuthController with user
+                            if (mounted) {
+                              final authController = Provider.of<AuthController>(context, listen: false);
+                              authController.setUser(user);
+                              
+                              // Also refresh user from backend to get full profile (phone, etc.)
+                              try {
+                                await authController.refreshUser();
+                              } catch (e) {
+                                // If refresh fails, still use the user from signup
+                                debugPrint('Failed to refresh user after signup: $e');
+                              }
+                            }
+                            
                             if (!mounted) return;
                             Navigator.pushReplacement(
                               context,

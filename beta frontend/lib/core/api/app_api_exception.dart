@@ -42,10 +42,58 @@ class AppApiException implements Exception {
           
           if (data is Map<String, dynamic>) {
             // Try to extract error message from common response formats
-            message = data['message'] as String? ??
-                data['error'] as String? ??
-                data['errorMessage'] as String? ??
-                'Request failed with status $statusCode';
+            // Check for validation errors (Zod format from backend)
+            if (data['details'] != null && data['details'] is List) {
+              // Backend returns: { success: false, error: "Validation error", details: [...] }
+              final details = data['details'] as List;
+              if (details.isNotEmpty) {
+                final errorMessages = details.map((e) {
+                  if (e is Map) {
+                    final path = (e['path'] as String?) ?? '';
+                    final msg = e['message']?.toString() ?? '';
+                    // Remove 'body.' prefix from path
+                    final cleanPath = path.replaceAll('body.', '');
+                    return cleanPath.isNotEmpty ? '$cleanPath: $msg' : msg;
+                  }
+                  return e.toString();
+                }).join('\n');
+                message = 'Validation error:\n$errorMessages';
+              } else {
+                message = data['error'] as String? ?? 
+                    data['message'] as String? ?? 
+                    'Validation error';
+              }
+            } else if (data['errors'] != null && data['errors'] is List) {
+              final errors = data['errors'] as List;
+              if (errors.isNotEmpty) {
+                final errorMessages = errors.map((e) {
+                  if (e is Map) {
+                    return e['message']?.toString() ?? e.toString();
+                  }
+                  return e.toString();
+                }).join(', ');
+                message = 'Validation error: $errorMessages';
+              }
+            } else if (data['issues'] != null && data['issues'] is List) {
+              // Zod validation errors format (alternative)
+              final issues = data['issues'] as List;
+              if (issues.isNotEmpty) {
+                final errorMessages = issues.map((e) {
+                  if (e is Map) {
+                    final path = (e['path'] as List?)?.join('.') ?? '';
+                    final msg = e['message']?.toString() ?? '';
+                    return path.isNotEmpty ? '$path: $msg' : msg;
+                  }
+                  return e.toString();
+                }).join(', ');
+                message = 'Validation error: $errorMessages';
+              }
+            } else {
+              message = data['message'] as String? ??
+                  data['error'] as String? ??
+                  data['errorMessage'] as String? ??
+                  'Request failed with status $statusCode';
+            }
             details = data;
           } else if (data is String) {
             message = data;

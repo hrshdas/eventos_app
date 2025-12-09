@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'login_screen.dart';
 import '../widgets/eventos_logo_svg.dart';
-import '../core/api/api_client.dart';
-import '../auth/auth_repository.dart';
+import '../core/auth/auth_controller.dart';
 import 'main_navigation_screen.dart';
 
 // Optional: simple logger
@@ -25,15 +25,10 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _logoYPositionAnimation;
   late Animation<double> _logoScaleAnimation;
   late Animation<Color?> _logoColorAnimation;
-  final ApiClient _api = ApiClient();
-  late final AuthRepository _authRepo;
-  bool _hasSession = false;
 
   @override
   void initState() {
     super.initState();
-
-    _authRepo = AuthRepository(_api);
 
     _controller = AnimationController(
       duration: const Duration(milliseconds: 2500),
@@ -97,30 +92,38 @@ class _SplashScreenState extends State<SplashScreen>
     // Start animation
     _controller.forward();
 
-    // Kick off a backend health check (non-blocking)
-    _api
-        .get('/health')
-        .then((res) => _log('Backend health OK: $res'))
-        .catchError((e) => _log('Backend health check failed: $e'));
-
-    // Preload any existing session (non-blocking relative to animation)
-    _authRepo.loadSessionIfAny().then((exists) {
-      setState(() {
-        _hasSession = exists;
-      });
-    }).catchError((_) {});
-
-    // Navigate when animation completes
+    // Navigate when animation completes and auth is initialized
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        final Widget next = _hasSession
-            ? MainNavigationScreen(initialIndex: 0)
-            : const LoginScreen();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => next),
-        );
+        _navigateBasedOnAuth();
       }
     });
+  }
+
+  void _navigateBasedOnAuth() {
+    final authController = Provider.of<AuthController>(context, listen: false);
+    
+    // Wait for auth initialization if not done yet
+    if (!authController.isInitialized) {
+      // Listen for initialization
+      authController.addListener(() {
+        if (authController.isInitialized && mounted) {
+          _navigateBasedOnAuth();
+        }
+      });
+      return;
+    }
+
+    // Navigate based on auth state
+    final Widget next = authController.isLoggedIn
+        ? MainNavigationScreen(initialIndex: 0)
+        : const LoginScreen();
+    
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => next),
+      );
+    }
   }
 
   @override

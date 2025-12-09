@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
+import '../core/auth/auth_controller.dart';
+import '../features/auth/data/user_repository.dart';
+import '../core/api/app_api_exception.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -14,17 +18,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emailCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _cityCtrl;
-  late TextEditingController _bioCtrl;
+  late TextEditingController _avatarCtrl;
   bool _isLoading = false;
+  final UserRepository _userRepository = UserRepository();
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: 'John Doe');
-    _emailCtrl = TextEditingController(text: 'john@example.com');
-    _phoneCtrl = TextEditingController(text: '+91 98765 43210');
-    _cityCtrl = TextEditingController(text: 'Mumbai, India');
-    _bioCtrl = TextEditingController(text: 'Event enthusiast');
+    final authController = Provider.of<AuthController>(context, listen: false);
+    final user = authController.currentUser;
+    
+    _nameCtrl = TextEditingController(text: user?.name ?? '');
+    _emailCtrl = TextEditingController(text: user?.email ?? '');
+    _phoneCtrl = TextEditingController(text: user?.phone ?? '');
+    _cityCtrl = TextEditingController(text: ''); // City not in user model yet
+    _avatarCtrl = TextEditingController(text: user?.avatar ?? '');
   }
 
   @override
@@ -33,7 +41,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _cityCtrl.dispose();
-    _bioCtrl.dispose();
+    _avatarCtrl.dispose();
     super.dispose();
   }
 
@@ -43,18 +51,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Call API to save profile
-      // final userRepo = UserRepository();
-      // await userRepo.updateProfile(...);
+      final updatedUser = await _userRepository.updateProfile(
+        name: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        city: _cityCtrl.text.trim().isNotEmpty ? _cityCtrl.text.trim() : null,
+        avatar: _avatarCtrl.text.trim().isNotEmpty ? _avatarCtrl.text.trim() : null,
+      );
+
+      // Update AuthController with new user data
+      final authController = Provider.of<AuthController>(context, listen: false);
+      authController.setUser(updatedUser);
+      await authController.refreshProfile();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile updated successfully'),
           duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
         ),
       );
       Navigator.pop(context);
+    } on AppApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: const Color(0xFFE53E3E),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -173,9 +198,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Email Field
+                // Email Field (read-only)
                 TextFormField(
                   controller: _emailCtrl,
+                  enabled: false,
                   decoration: InputDecoration(
                     labelText: 'Email',
                     prefixIcon: const Icon(Icons.email),
@@ -183,17 +209,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: AppTheme.white,
+                    fillColor: AppTheme.lightGrey,
                   ),
-                  validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Please enter your email';
-                    }
-                    if (!value!.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -210,13 +227,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     fillColor: AppTheme.white,
                   ),
                   validator: (value) {
-                    if (value?.isEmpty ?? true) {
-                      return 'Please enter your phone number';
-                    }
+                    final v = (value ?? '').trim();
+                    if (v.isEmpty) return 'Please enter your phone number';
+                    final reg = RegExp(r'^\+?[0-9]{7,15}$');
+                    if (!reg.hasMatch(v)) return 'Enter a valid phone number';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // Avatar URL (optional)
+                TextFormField(
+                  controller: _avatarCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Avatar URL (optional)',
+                    prefixIcon: const Icon(Icons.link),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: AppTheme.white,
+                  ),
+                  validator: (value) {
+                    final v = (value ?? '').trim();
+                    if (v.isEmpty) return null;
+                    final uri = Uri.tryParse(v);
+                    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+                      return 'Enter a valid http/https URL';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 32),
 
                 // City Field
                 TextFormField(
@@ -236,22 +278,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     }
                     return null;
                   },
-                ),
-                const SizedBox(height: 16),
-
-                // Bio Field
-                TextFormField(
-                  controller: _bioCtrl,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    labelText: 'Bio',
-                    prefixIcon: const Icon(Icons.info),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.white,
-                  ),
                 ),
                 const SizedBox(height: 32),
 

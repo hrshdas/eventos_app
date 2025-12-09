@@ -121,7 +121,9 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
         currentIndex: _currentIndex,
         onTap: (index) {
           // Use central navigation to switch tabs in MainNavigationScreen
-          NavigationHelper.navigateToMainScreen(context, index);
+          // Map index: Home=0, AI Planner=1, My Events=2, Profile=3
+          int mainIndex = index == 0 ? 0 : (index == 1 ? 1 : (index == 2 ? 2 : 3));
+          NavigationHelper.navigateToMainScreen(context, mainIndex);
         },
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppTheme.primaryColor,
@@ -131,7 +133,6 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'AI Planner'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Cart'),
           BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'My Events'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],

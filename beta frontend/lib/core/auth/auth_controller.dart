@@ -92,8 +92,12 @@ class AuthController extends ChangeNotifier {
 
   /// Set current user (called after successful login/signup)
   void setUser(User user) {
+    debugPrint('AuthController.setUser: Called with user: ${user.name} (${user.email}), role: ${user.role}');
+    debugPrint('AuthController.setUser: User object: id=${user.id}, name=${user.name}, email=${user.email}');
     _currentUser = user;
+    debugPrint('AuthController.setUser: _currentUser set. About to notify listeners...');
     notifyListeners();
+    debugPrint('AuthController.setUser: Listeners notified. isLoggedIn: $isLoggedIn, currentUser: ${_currentUser?.name}');
   }
 
   /// Clear user (called on logout)
@@ -105,15 +109,29 @@ class AuthController extends ChangeNotifier {
   /// Refresh current user data from backend
   Future<void> refreshUser() async {
     try {
+      debugPrint('AuthController: Refreshing user from backend...');
       final user = await _authRepository.getCurrentUser();
-      _currentUser = user;
-      notifyListeners();
-    } catch (e) {
-      // If refresh fails, user might be logged out
-      if (_currentUser != null) {
+      if (user != null) {
+        debugPrint('AuthController: User refreshed: ${user.name} (${user.email})');
+        _currentUser = user;
+        notifyListeners();
+      } else {
+        debugPrint('AuthController: refreshUser returned null - keeping existing user if any');
+        // Don't clear user if refresh returns null - might be a temporary network issue
+        // Only clear if we get a 401/403 error
+      }
+    } on AppApiException catch (e) {
+      debugPrint('AuthController: Error refreshing user: ${e.statusCode} - ${e.message}');
+      // Only clear user if we get 401/403 (unauthorized)
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        debugPrint('AuthController: Unauthorized - clearing user');
         _currentUser = null;
         notifyListeners();
       }
+      // For other errors, keep the existing user
+    } catch (e) {
+      debugPrint('AuthController: Unexpected error refreshing user: $e');
+      // Don't clear user on unexpected errors - might be network issue
     }
   }
 
@@ -123,5 +141,9 @@ class AuthController extends ChangeNotifier {
     _currentUser = null;
     notifyListeners();
   }
-}
 
+  /// Backwards-compatible alias used by UI flows expecting `refreshProfile()`
+  Future<void> refreshProfile() async {
+    await refreshUser();
+  }
+}

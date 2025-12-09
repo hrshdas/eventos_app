@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
 import '../widgets/eventos_logo_svg.dart';
+import '../widgets/listings_list.dart';
+import '../core/location/location_provider.dart';
+import '../widgets/shared_header_card.dart';
+import 'cart_screen.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,7 +33,15 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  const HeaderCard(),
+                  SharedHeaderCard(
+                    showCartIcon: true,
+                    cartItemCount: CartRepository().itemCount,
+                    onCartTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const CartScreen()),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 24),
                   const PopularPackagesSection(),
                   const SizedBox(height: 24),
@@ -96,7 +111,15 @@ class HomeScreenContent extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                const HeaderCard(),
+                SharedHeaderCard(
+                  showCartIcon: true,
+                  cartItemCount: CartRepository().itemCount,
+                  onCartTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CartScreen()),
+                    );
+                  },
+                ),
                 const SizedBox(height: 24),
                 const PopularPackagesSection(),
                 const SizedBox(height: 24),
@@ -106,205 +129,6 @@ class HomeScreenContent extends StatelessWidget {
                 const SizedBox(height: 80), // Space for bottom nav
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Header Card Widget
-class HeaderCard extends StatelessWidget {
-  const HeaderCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.darkNavy,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Welcome and Location Row
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Hi, Welcome ',
-                  style: AppTheme.welcomeText,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.darkGrey,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.location_on,
-                            color: AppTheme.white,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Mumbai, India',
-                            style: AppTheme.locationText,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // App Title
-          const SizedBox(height: 8),
-          const EventosLogoSvg(height: 36, color: AppTheme.white),
-          const SizedBox(height: 16),
-          // Search Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppTheme.darkGrey,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.search,
-                  color: AppTheme.textGrey,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Search BBQ grill, DJ, tents...',
-                    style: TextStyle(
-                      color: AppTheme.textGrey,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.shopping_cart,
-                        color: AppTheme.white,
-                        size: 20,
-                      ),
-                    ),
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: Text(
-                            '3',
-                            style: TextStyle(
-                              color: AppTheme.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Filter Chips Row
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.darkGrey,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Event date',
-                          style: AppTheme.locationText,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppTheme.darkGrey,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: AppTheme.white,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'City / pin code',
-                          style: AppTheme.locationText,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -360,25 +184,12 @@ class PopularPackagesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
+        // Use ListingsList widget with category filter for packages
+        const ListingsList(
+          filters: {'category': 'package'},
+          horizontal: true,
           height: 260,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: 2,
-            itemBuilder: (context, index) {
-              return _PopularPackageCard(
-                title: index == 0 ? 'Boho Chic Party' : 'Retro 80s Night',
-                subtitle: index == 0
-                    ? 'Rustic elegance meets modern bohemian style with natural'
-                    : 'Vibrant neon lights retro aesthetics for',
-                rating: index == 0 ? 4 : 5,
-                imageUrl: index == 0
-                    ? 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400'
-                    : 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400',
-              );
-            },
-          ),
+          itemLimit: 10,
         ),
       ],
     );

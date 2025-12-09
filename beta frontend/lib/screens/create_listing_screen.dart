@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../widgets/image_picker_widget.dart';
@@ -102,6 +103,86 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       return;
     }
 
+    // Validate all required fields before submission
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+    final city = _cityController.text.trim();
+    final pincode = _pincodeController.text.trim();
+    final priceText = _priceController.text.trim();
+
+    // Check required fields
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Title is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Description is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedCategory.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Category is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (city.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('City is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (pincode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pincode is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (priceText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Price is required'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Parse and validate price
+    final price = double.tryParse(priceText);
+    if (price == null || price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Price must be a valid number greater than 0'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -139,21 +220,26 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
 
     try {
       final listing = await _repository.createListing(
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
+        title: title,
+        description: description,
         category: _selectedCategory,
-        city: _cityController.text.trim(),
-        pincode: _pincodeController.text.trim(),
+        city: city,
+        pincode: pincode,
         date: _selectedDate!,
         time: _timeController.text.trim().isEmpty ? null : _timeController.text.trim(),
-        price: double.parse(_priceController.text.trim()),
+        price: price,
         capacity: _capacityController.text.trim().isEmpty
             ? null
             : int.tryParse(_capacityController.text.trim()),
         files: _selectedImages.isEmpty ? null : _selectedImages,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -182,7 +268,12 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
       // Return the created listing so parent can refresh if needed
       Navigator.pop(context, listing);
     } on AppApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
       
       // Handle 403 Forbidden - user might not be logged in or lacks permission
       if (e.statusCode == 403) {
@@ -197,6 +288,9 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
+          setState(() {
+            _isLoading = false;
+          });
           return;
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -207,16 +301,67 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
             ),
           );
         }
+      } else if (e.statusCode == 400) {
+        // Validation error - show detailed message
+        String errorMessage = e.message;
+        if (e.details != null) {
+          debugPrint('CreateListing: Validation error details: ${e.details}');
+          
+          // Backend returns: { success: false, error: "Validation error", details: [...] }
+          if (e.details!['details'] != null && e.details!['details'] is List) {
+            final details = e.details!['details'] as List;
+            if (details.isNotEmpty) {
+              final errorMessages = details.map((detail) {
+                if (detail is Map) {
+                  final path = (detail['path'] as String?) ?? '';
+                  final msg = detail['message']?.toString() ?? '';
+                  // Remove 'body.' prefix from path
+                  final cleanPath = path.replaceAll('body.', '').replaceAll('pricePerDay', 'Price');
+                  return cleanPath.isNotEmpty ? '$cleanPath: $msg' : msg;
+                }
+                return detail.toString();
+              }).join('\n');
+              errorMessage = 'Validation errors:\n$errorMessages';
+            }
+          } else if (e.details!['issues'] != null && e.details!['issues'] is List) {
+            final issues = e.details!['issues'] as List;
+            final errorMessages = issues.map((issue) {
+              if (issue is Map) {
+                final path = (issue['path'] as List?)?.join('.') ?? '';
+                final msg = issue['message']?.toString() ?? '';
+                return path.isNotEmpty ? '${path.replaceAll('body.', '')}: $msg' : msg;
+              }
+              return issue.toString();
+            }).join('\n');
+            errorMessage = 'Validation errors:\n$errorMessages';
+          } else if (e.details!['errors'] != null && e.details!['errors'] is List) {
+            final errors = e.details!['errors'] as List;
+            errorMessage = 'Validation errors:\n${errors.join('\n')}';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to create listing: ${e.message}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('An error occurred: ${e.toString()}'),
@@ -261,7 +406,7 @@ class _CreateListingScreenState extends State<CreateListingScreen> {
                 ),
                 const SizedBox(height: 8),
                 ImagePickerWidget(
-                  maxImages: 5,
+                  maxImages: 8,
                   onImagesChanged: (images) {
                     setState(() {
                       _selectedImages = images;
