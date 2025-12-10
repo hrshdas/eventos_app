@@ -26,6 +26,7 @@ class ListingCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
+              listingId: listing.id,
               title: listing.title,
               imageUrl: listing.imageUrl ?? '',
               rating: listing.rating ?? 0,
@@ -143,6 +144,7 @@ class ListingCard extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => PackageDetailsScreen(
+                                  listingId: listing.id,
                                   title: listing.title,
                                   imageUrl: listing.imageUrl ?? '',
                                   rating: listing.rating ?? 0,
@@ -199,4 +201,3 @@ class ListingCard extends StatelessWidget {
     );
   }
 }
-

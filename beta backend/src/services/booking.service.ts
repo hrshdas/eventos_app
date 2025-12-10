@@ -10,6 +10,36 @@ export interface CreateBookingData {
   endDate: Date;
 }
 
+async function notifyOwnerOfBooking(params: {
+  bookingId: string;
+  listingId: string;
+  listingTitle?: string | null;
+  ownerId: string;
+  userId: string;
+  startDate: string;
+  endDate: string;
+  totalAmount: number;
+  status: string;
+}) {
+  try {
+    const url = process.env.BOOKING_WEBHOOK_URL;
+    if (!url) return; // no-op if not configured
+
+    // Use global fetch if available (Node 18+)
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'BOOKING_CREATED',
+        timestamp: new Date().toISOString(),
+        data: params,
+      }),
+    }).catch(() => {});
+  } catch {
+    // Best-effort; ignore errors
+  }
+}
+
 export const createBooking = async (
   data: CreateBookingData
 ): Promise<Booking> => {
@@ -33,12 +63,6 @@ export const createBooking = async (
   if (!listing) {
     const error: ApiError = new Error('Listing not found');
     error.statusCode = 404;
-    throw error;
-  }
-
-  if (!listing.isActive) {
-    const error: ApiError = new Error('Listing is not available');
-    error.statusCode = 400;
     throw error;
   }
 
@@ -71,7 +95,7 @@ export const createBooking = async (
   const totalAmount = days * listing.pricePerDay;
 
   // Create booking
-  return prisma.booking.create({
+  const booking = await prisma.booking.create({
     data: {
       listingId,
       userId,
@@ -81,6 +105,21 @@ export const createBooking = async (
       status: BookingStatus.PENDING,
     },
   });
+
+  // Best-effort notify owner (webhook)
+  notifyOwnerOfBooking({
+    bookingId: booking.id,
+    listingId,
+    listingTitle: listing.title,
+    ownerId: listing.ownerId,
+    userId,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    totalAmount,
+    status: booking.status,
+  });
+
+  return booking;
 };
 
 export const getUserBookings = async (userId: string) => {

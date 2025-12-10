@@ -320,6 +320,7 @@ class _RentalCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
+              listingId: listingId,
               title: title,
               imageUrl: imageUrl,
               rating: rating,

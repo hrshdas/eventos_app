@@ -6,6 +6,8 @@ import '../features/listings/data/listings_repository.dart';
 import '../features/listings/domain/models/listing.dart';
 import '../core/api/app_api_exception.dart';
 import 'gallery_screen.dart';
+import '../features/bookings/data/booking_repository.dart';
+import 'booking_success_screen.dart';
 
 class PackageDetailsScreen extends StatefulWidget {
   final String? listingId; // If provided, fetch full listing details
@@ -32,6 +34,7 @@ class PackageDetailsScreen extends StatefulWidget {
 
 class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   final ListingsRepository _repository = ListingsRepository();
+  final BookingRepository _bookingRepository = BookingRepository();
   Listing? _listing;
   bool _isLoading = false;
   String? _error;
@@ -45,6 +48,8 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
     super.initState();
     if (widget.listingId != null) {
       _loadListing();
+    } else if ((widget.title ?? '').isNotEmpty) {
+      _lookupListingByTitle(widget.title!.trim());
     }
   }
 
@@ -90,6 +95,95 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _lookupListingByTitle(String title) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final results = await _repository.getListings(filters: {'search': title});
+      if (results.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _listing = results.first;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    } on AppApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startBookingFlow() async {
+    // Ensure we have a listingId to book
+    final listingId = widget.listingId ?? _listing?.id;
+    if (listingId == null || listingId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to book: missing listing id'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    // Pick a date range (simple MVP)
+    final now = DateTime.now();
+    final initialStart = DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+    final initialEnd = initialStart.add(const Duration(days: 1));
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
+    );
+    if (picked == null) return; // user cancelled
+
+    final startDate = DateTime(picked.start.year, picked.start.month, picked.start.day);
+    final endDate = DateTime(picked.end.year, picked.end.month, picked.end.day);
+
+    try {
+      // Call backend to create booking
+      final booking = await _bookingRepository.createBooking(
+        listingId: listingId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      if (!mounted) return;
+      // Navigate to success screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BookingSuccessScreen(booking: booking),
+        ),
+      );
+    } on AppApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Booking failed: ${e.message}'), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Booking failed: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -212,6 +306,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                     _showFullDescription = !_showFullDescription;
                   });
                 },
+                onOrderNow: _startBookingFlow,
               ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
@@ -506,6 +601,7 @@ class _DetailsCard extends StatelessWidget {
   final bool showFullDescription;
   final Function(int) onQuantityChanged;
   final VoidCallback onToggleDescription;
+  final VoidCallback onOrderNow;
 
   const _DetailsCard({
     required this.title,
@@ -524,6 +620,7 @@ class _DetailsCard extends StatelessWidget {
     required this.showFullDescription,
     required this.onQuantityChanged,
     required this.onToggleDescription,
+    required this.onOrderNow,
   });
 
   Color _getStatusColor(String status) {
@@ -713,7 +810,7 @@ class _DetailsCard extends StatelessWidget {
           // Action Buttons Row
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _ActionButtonsRow(),
+            child: _ActionButtonsRow(onOrderNow: onOrderNow),
           ),
           const SizedBox(height: 20),
         ],
@@ -935,7 +1032,9 @@ class _DescriptionSection extends StatelessWidget {
 
 // Action Buttons Row
 class _ActionButtonsRow extends StatelessWidget {
-  const _ActionButtonsRow();
+  final VoidCallback onOrderNow;
+
+  const _ActionButtonsRow({required this.onOrderNow});
 
   @override
   Widget build(BuildContext context) {
@@ -978,7 +1077,7 @@ class _ActionButtonsRow extends StatelessWidget {
         // Order Now Button
         Expanded(
           child: ElevatedButton(
-            onPressed: () {},
+            onPressed: onOrderNow,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               padding: const EdgeInsets.symmetric(vertical: 14),

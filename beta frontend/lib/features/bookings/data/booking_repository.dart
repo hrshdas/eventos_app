@@ -24,10 +24,14 @@ class BookingRepository {
     Map<String, dynamic>? additionalData,
   }) async {
     try {
+      final startUtc = DateTime.utc(startDate.year, startDate.month, startDate.day);
+      final endBase = endDate ?? startDate.add(const Duration(days: 1));
+      final endUtc = DateTime.utc(endBase.year, endBase.month, endBase.day);
+
       final bookingData = {
         'listingId': listingId,
-        'startDate': startDate.toIso8601String(),
-        if (endDate != null) 'endDate': endDate.toIso8601String(),
+        'startDate': startUtc.toIso8601String(),
+        'endDate': endUtc.toIso8601String(),
         if (numberOfGuests != null) 'numberOfGuests': numberOfGuests,
         if (totalPrice != null) 'totalPrice': totalPrice,
         if (additionalData != null) ...additionalData,

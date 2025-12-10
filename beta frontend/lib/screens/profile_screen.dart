@@ -459,3 +459,375 @@ class _EmptyView extends StatelessWidget {
     );
   }
 }
+
+// ================== Content-only Profile Screen (for MainNavigationScreen) ==================
+class ProfileScreenContent extends StatefulWidget {
+  const ProfileScreenContent({super.key});
+
+  @override
+  State<ProfileScreenContent> createState() => _ProfileScreenContentState();
+}
+
+class _ProfileScreenContentState extends State<ProfileScreenContent> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh user on first build if needed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authController = Provider.of<AuthController>(context, listen: false);
+      if (authController.currentUser == null) {
+        authController.refreshUser().catchError((_) {});
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthController>(
+      builder: (context, authController, _) {
+        final user = authController.currentUser;
+        final isOwner = user?.role?.toUpperCase() == 'OWNER';
+
+        if (authController.isLoading && user == null) {
+          return const SafeArea(child: Center(child: CircularProgressIndicator()));
+        }
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _HeaderSection(user: user),
+                SizedBox(height: 70),
+                _PersonalInfoCard(user: user),
+                SizedBox(height: 16),
+                if (isOwner) ...[
+                  _MyListingsSection(),
+                  SizedBox(height: 16),
+                ],
+                _PreferencesCard(),
+                SizedBox(height: 16),
+                _UpcomingEventsCard(),
+                SizedBox(height: 16),
+                _AccountActionsList(isOwner: isOwner, user: user),
+                SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ================== Section Widgets reinstated ==================
+class _HeaderSection extends StatelessWidget {
+  final dynamic user;
+  const _HeaderSection({super.key, this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    const headerHeight = 220.0;
+    const sidePadding = 20.0;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: double.infinity,
+          height: headerHeight,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFFF4F6D), Color(0xFFFF6B5A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(28),
+              bottomRight: Radius.circular(28),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 24, left: 20, right: 20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const SizedBox(width: 40, height: 40),
+                    const Text('Profile', style: TextStyle(color: AppTheme.white, fontSize: 20, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 40, height: 40),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4)),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 40,
+                        backgroundColor: AppTheme.darkGrey,
+                        child: Text(
+                          user?.initials ?? 'GU',
+                          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      user?.name ?? 'Guest User',
+                      style: const TextStyle(color: AppTheme.white, fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user?.role == 'OWNER' ? 'Owner' : 'Event Enthusiast',
+                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12.5, fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -56,
+          left: sidePadding,
+          right: sidePadding,
+          child: _StatsCard(),
+        ),
+      ],
+    );
+  }
+}
+
+class _PersonalInfoCard extends StatelessWidget {
+  final dynamic user;
+  const _PersonalInfoCard({super.key, this.user});
+
+  Widget _row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: AppTheme.textGrey, fontSize: 12)),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppTheme.textDark, fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Personal Information', style: TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.w700)),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditProfileScreen()));
+                },
+                child: const Text('Edit', style: TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _row('Full Name', user?.name ?? 'Guest User'),
+          Divider(height: 1, thickness: 0.5, color: AppTheme.textGrey.withOpacity(0.4)),
+          _row('Email', user?.email ?? 'Not specified'),
+          Divider(height: 1, thickness: 0.5, color: AppTheme.textGrey.withOpacity(0.4)),
+          _row('Phone', user?.phone ?? 'Not specified'),
+          Divider(height: 1, thickness: 0.5, color: AppTheme.textGrey.withOpacity(0.4)),
+          _row('Role', user?.role ?? 'CONSUMER'),
+        ],
+      ),
+    );
+  }
+}
+
+class _MyListingsSection extends StatelessWidget {
+  const _MyListingsSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Listings', style: TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.w700)),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MyListingsScreen()));
+                },
+                child: const Text('View All', style: TextStyle(color: AppTheme.primaryColor, fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateListingScreen()));
+            },
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('Create New Listing'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: AppTheme.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreferencesCard extends StatelessWidget {
+  const _PreferencesCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text('Preferences', style: TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.w700)),
+          SizedBox(height: 8),
+          Text('Customize your event recommendations and notifications.', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpcomingEventsCard extends StatelessWidget {
+  const _UpcomingEventsCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text('Upcoming Events', style: TextStyle(color: AppTheme.textDark, fontSize: 16, fontWeight: FontWeight.w700)),
+          SizedBox(height: 8),
+          Text('You have no upcoming events yet.', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+// Stats card displayed overlapping the header
+class _StatsCard extends StatelessWidget {
+  const _StatsCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: const [
+          _StatItem(label: 'Bookings', value: '0'),
+          _StatItem(label: 'Wishlist', value: '0'),
+          _StatItem(label: 'Reviews', value: '0'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatItem({super.key, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.textGrey,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+}
