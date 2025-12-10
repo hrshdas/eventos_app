@@ -86,5 +86,62 @@ class BookingRepository {
       );
     }
   }
-}
 
+  /// Get bookings for listings owned by the current owner (OWNER or ADMIN)
+  Future<List<Booking>> getOwnerBookings() async {
+    try {
+      final response = await _apiClient.get('/bookings/owner');
+
+      List<dynamic> bookingsData;
+      if (response['data'] is List) {
+        bookingsData = response['data'] as List<dynamic>;
+      } else if (response['bookings'] is List) {
+        bookingsData = response['bookings'] as List<dynamic>;
+      } else if (response is List<dynamic>) {
+        bookingsData = response as List<dynamic>;
+      } else {
+        bookingsData = [];
+      }
+
+      return bookingsData
+          .map((json) => Booking.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: 'Failed to fetch owner bookings: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Update booking status (OWNER/ADMIN only): CONFIRMED or CANCELLED
+  Future<Booking> updateBookingStatus({
+    required String bookingId,
+    required String status,
+  }) async {
+    try {
+      final response = await _apiClient.patch(
+        '/bookings/$bookingId/status',
+        data: {'status': status},
+      );
+
+      Map<String, dynamic> bookingJson;
+      if (response['data'] is Map<String, dynamic>) {
+        bookingJson = response['data'] as Map<String, dynamic>;
+      } else {
+        bookingJson = response;
+      }
+
+      return Booking.fromJson(bookingJson);
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: 'Failed to update booking status: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+}

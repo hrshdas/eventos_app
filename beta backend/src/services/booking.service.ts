@@ -126,3 +126,46 @@ export const getOwnerBookings = async (ownerId: string) => {
   });
 };
 
+export const updateBookingStatus = async (
+  bookingId: string,
+  status: 'CONFIRMED' | 'CANCELLED',
+  actorId: string,
+  actorRole: string
+) => {
+  // Find booking with listing owner
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      listing: true,
+    },
+  });
+
+  if (!booking) {
+    const error: ApiError = new Error('Booking not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const isOwner = booking.listing.ownerId === actorId;
+  const isAdmin = actorRole === 'ADMIN';
+  if (!isOwner && !isAdmin) {
+    const error: ApiError = new Error('Not authorized to modify this booking');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Update status
+  const updated = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: status as BookingStatus },
+    include: {
+      listing: true,
+      user: {
+        select: { id: true, name: true, email: true },
+      },
+      payment: true,
+    },
+  });
+
+  return updated;
+};

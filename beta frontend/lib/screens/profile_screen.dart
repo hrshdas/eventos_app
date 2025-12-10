@@ -7,429 +7,10 @@ import 'login_screen.dart';
 import 'create_listing_screen.dart';
 import 'edit_profile_screen.dart';
 import '../features/listings/presentation/my_listings_screen.dart';
+import '../features/bookings/data/booking_repository.dart';
+import '../features/bookings/domain/models/booking.dart';
 
-class ProfileScreen extends StatefulWidget {
-  ProfileScreen({super.key});
-
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  int _currentIndex = 4; // Profile tab
-
-  @override
-  void initState() {
-    super.initState();
-    // Refresh user data when screen loads (only if we don't have a user)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authController = Provider.of<AuthController>(context, listen: false);
-      // Only refresh if we don't have a user yet
-      if (authController.currentUser == null) {
-        debugPrint('ProfileScreen: No user found, refreshing...');
-        authController.refreshUser();
-      } else {
-        debugPrint('ProfileScreen: User already exists: ${authController.currentUser?.name}');
-        // Optionally refresh to get latest data (phone, etc.) but don't wait for it
-        authController.refreshUser().catchError((e) {
-          debugPrint('ProfileScreen: Refresh failed but keeping existing user: $e');
-        });
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AuthController>(
-      builder: (context, authController, _) {
-        final user = authController.currentUser;
-        final isOwner = user?.role?.toUpperCase() == 'OWNER';
-        
-        // Debug: Print user data
-        if (user != null) {
-          debugPrint('ProfileScreen: Building with user: ${user.name}, email: ${user.email}, role: ${user.role}');
-        } else {
-          debugPrint('ProfileScreen: Building with null user, isLoading: ${authController.isLoading}');
-        }
-        
-        // Show loading if auth is still initializing
-        if (authController.isLoading && user == null) {
-          return Scaffold(
-            backgroundColor: AppTheme.lightGrey,
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        return Scaffold(
-          backgroundColor: AppTheme.lightGrey,
-          body: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Header with overlay stats card
-                  _HeaderSection(user: user),
-                  SizedBox(height: 70), // Space to accommodate the overlay stats card
-                  // Content cards
-                  _PersonalInfoCard(user: user),
-
-                  SizedBox(height: 16),
-                  if (isOwner) ...[
-                    _MyListingsSection(),
-                    SizedBox(height: 16),
-                  ],
-                  _PreferencesCard(),
-                  SizedBox(height: 16),
-                  _UpcomingEventsCard(),
-                  SizedBox(height: 16),
-                  _AccountActionsList(isOwner: isOwner, user: user),
-
-                  SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              // Use central navigation to switch tabs in MainNavigationScreen
-              // Map index: Home=0, AI Planner=1, My Events=2, Profile=3
-              int mainIndex = index == 0 ? 0 : (index == 1 ? 1 : (index == 2 ? 2 : 3));
-              NavigationHelper.navigateToMainScreen(context, mainIndex);
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppTheme.primaryColor,
-            unselectedItemColor: AppTheme.textGrey,
-            backgroundColor: AppTheme.white,
-            elevation: 8,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'AI Planner'),
-              BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'My Events'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _HeaderSection extends StatelessWidget {
-  final dynamic user; // User model from AuthController
-
-  const _HeaderSection({super.key, this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final headerHeight = 220.0;
-
-    final sidePadding = 20.0;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Gradient header
-        Container(
-          width: double.infinity,
-          height: headerHeight,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFFF4F6D), Color(0xFFFF6B5A)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(28),
-              bottomRight: Radius.circular(28),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 24, left: 20, right: 20),
-            child: Column(
-              children: [
-                // Top Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Back arrow
-                    InkWell(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      borderRadius: BorderRadius.circular(24),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Icon(Icons.arrow_back, color: Colors.white),
-                      ),
-                    ),
-                    const Text(
-                      'Profile',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    // Settings
-                    InkWell(
-                      onTap: () {
-                        // ignore: avoid_print
-                        print('Settings tapped');
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Icon(Icons.settings, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Avatar + Name
-                Container(
-                  alignment: Alignment.center,
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppTheme.darkGrey,
-                          child: Text(
-                            user?.initials ?? 'GU',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        user?.name ?? 'Guest User',
-                        style: const TextStyle(
-                          color: AppTheme.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        user?.role == 'OWNER' ? 'Owner' : 'Event Enthusiast',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Overlay stats card
-        Positioned(
-          bottom: -56,
-          left: sidePadding,
-          right: sidePadding,
-          child: _StatsCard(),
-        ),
-      ],
-    );
-  }
-}
-
-class _PersonalInfoCard extends StatelessWidget {
-  final dynamic user; // User model from AuthController
-
-  const _PersonalInfoCard({super.key, this.user});
-
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                color: AppTheme.textGrey,
-                fontSize: 12,
-              )),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.textDark,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _divider() => Divider(
-        height: 1,
-        thickness: 0.5,
-        color: AppTheme.textGrey.withOpacity(0.4),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Title row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Personal Information',
-                style: TextStyle(
-                  color: AppTheme.textDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const EditProfileScreen(),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Edit',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _row('Full Name', user?.name ?? 'Guest User'),
-          _divider(),
-          _row('Email', user?.email ?? 'Not specified'),
-          _divider(),
-          _row('Phone', user?.phone ?? 'Not specified'),
-          _divider(),
-          _row('Role', user?.role ?? 'CONSUMER'),
-        ],
-      ),
-    );
-  }
-}
-
-class _MyListingsSection extends StatelessWidget {
-  const _MyListingsSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'My Listings',
-                style: TextStyle(
-                  color: AppTheme.textDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const MyListingsScreen(),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'View All',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const CreateListingScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.add, size: 20),
-            label: const Text('Create New Listing'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: AppTheme.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ... (rest of the code remains the same)
 
 class _AccountActionsList extends StatelessWidget {
   final bool isOwner;
@@ -513,6 +94,17 @@ class _AccountActionsList extends StatelessWidget {
               );
             },
           ),
+          _item(
+            icon: Icons.book_online,
+            label: 'My Bookings',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MyBookingsScreen(),
+                ),
+              );
+            },
+          ),
           _item(icon: Icons.credit_card, label: 'Payment Methods'),
           _item(icon: Icons.notifications, label: 'Notifications'),
           if (isOwner)
@@ -523,6 +115,18 @@ class _AccountActionsList extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const CreateListingScreen(),
+                  ),
+                );
+              },
+            ),
+          if (isOwner)
+            _item(
+              icon: Icons.event_available,
+              label: 'Bookings for my listings',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const OwnerBookingsScreen(),
                   ),
                 );
               },
@@ -571,234 +175,287 @@ class _AccountActionsList extends StatelessWidget {
   }
 }
 
-class _StatsCard extends StatelessWidget {
-  const _StatsCard({super.key});
+// ... (rest of the code remains the same)
+
+// ================== My Bookings Screen ==================
+class MyBookingsScreen extends StatefulWidget {
+  const MyBookingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          _StatItem(label: 'Bookings', value: '0'),
-          _StatItem(label: 'Wishlist', value: '0'),
-          _StatItem(label: 'Reviews', value: '0'),
-        ],
-      ),
-    );
-  }
+  State<MyBookingsScreen> createState() => _MyBookingsScreenState();
 }
 
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
+class _MyBookingsScreenState extends State<MyBookingsScreen> {
+  final _repo = BookingRepository();
+  bool _loading = true;
+  String? _error;
+  List<Booking> _bookings = [];
 
-  const _StatItem({super.key, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppTheme.textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.textGrey,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PreferencesCard extends StatelessWidget {
-  const _PreferencesCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Preferences',
-            style: TextStyle(
-              color: AppTheme.textDark,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Customize your event recommendations and notifications.',
-            style: TextStyle(
-              color: AppTheme.textGrey,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UpcomingEventsCard extends StatelessWidget {
-  const _UpcomingEventsCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Upcoming Events',
-            style: TextStyle(
-              color: AppTheme.textDark,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'You have no upcoming events yet.',
-            style: TextStyle(
-              color: AppTheme.textGrey,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Content-only version for use inside MainNavigationScreen tab (no Scaffold/BottomNav)
-class ProfileScreenContent extends StatefulWidget {
-  const ProfileScreenContent({super.key});
-
-  @override
-  State<ProfileScreenContent> createState() => _ProfileScreenContentState();
-}
-
-class _ProfileScreenContentState extends State<ProfileScreenContent> {
   @override
   void initState() {
     super.initState();
-    // Refresh user data when screen loads (only if we don't have a user)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authController = Provider.of<AuthController>(context, listen: false);
-      // Only refresh if we don't have a user yet
-      if (authController.currentUser == null) {
-        debugPrint('ProfileScreenContent: No user found, refreshing...');
-        authController.refreshUser();
-      } else {
-        debugPrint('ProfileScreenContent: User already exists: ${authController.currentUser?.name}');
-        // Optionally refresh to get latest data (phone, etc.) but don't wait for it
-        authController.refreshUser().catchError((e) {
-          debugPrint('ProfileScreenContent: Refresh failed but keeping existing user: $e');
-        });
-      }
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
     });
+    try {
+      final data = await _repo.getMyBookings();
+      setState(() {
+        _bookings = data;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('ProfileScreenContent.build: Called');
-    return Consumer<AuthController>(
-      builder: (context, authController, _) {
-        final user = authController.currentUser;
-        final isOwner = user?.role?.toUpperCase() == 'OWNER';
-        
-        // Debug: Print user data
-        debugPrint('ProfileScreenContent: Consumer builder called');
-        debugPrint('ProfileScreenContent: authController.isLoggedIn: ${authController.isLoggedIn}');
-        debugPrint('ProfileScreenContent: authController.isLoading: ${authController.isLoading}');
-        if (user != null) {
-          debugPrint('ProfileScreenContent: Building with user: ${user.name}, email: ${user.email}, role: ${user.role}');
-        } else {
-          debugPrint('ProfileScreenContent: Building with null user');
-        }
-        
-        // Show loading if auth is still initializing
-        if (authController.isLoading && user == null) {
-          debugPrint('ProfileScreenContent: Showing loading indicator');
-          return const SafeArea(
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Bookings'),
+        backgroundColor: AppTheme.white,
+        foregroundColor: AppTheme.textDark,
+        elevation: 0,
+      ),
+      backgroundColor: AppTheme.lightGrey,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? _ErrorView(message: _error!, onRetry: _load)
+                : _bookings.isEmpty
+                    ? const _EmptyView(message: 'You have no bookings yet.')
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _bookings.length,
+                        itemBuilder: (_, i) => _BookingTile(booking: _bookings[i]),
+                      ),
+      ),
+    );
+  }
+}
 
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                _HeaderSection(user: user),
-                SizedBox(height: 70),
-                _PersonalInfoCard(user: user),
-                SizedBox(height: 16),
-                if (isOwner) ...[
-                  _MyListingsSection(),
-                  SizedBox(height: 16),
-                ],
-                _PreferencesCard(),
-                SizedBox(height: 16),
-                _UpcomingEventsCard(),
-                SizedBox(height: 16),
-                _AccountActionsList(isOwner: isOwner, user: user),
-                SizedBox(height: 24),
-              ],
-            ),
-          ),
+// ================== Owner Bookings Screen ==================
+class OwnerBookingsScreen extends StatefulWidget {
+  const OwnerBookingsScreen({super.key});
+
+  @override
+  State<OwnerBookingsScreen> createState() => _OwnerBookingsScreenState();
+}
+
+class _OwnerBookingsScreenState extends State<OwnerBookingsScreen> {
+  final _repo = BookingRepository();
+  bool _loading = true;
+  String? _error;
+  List<Booking> _bookings = [];
+  String? _actionError;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _repo.getOwnerBookings();
+      setState(() {
+        _bookings = data;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _updateStatus(Booking b, String status) async {
+    setState(() => _actionError = null);
+    try {
+      final updated = await _repo.updateBookingStatus(bookingId: b.id, status: status);
+      final idx = _bookings.indexWhere((x) => x.id == b.id);
+      if (idx != -1) {
+        setState(() {
+          _bookings[idx] = updated;
+        });
+      }
+      // feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Booking ${status.toLowerCase()}')),
         );
-      },
+      }
+    } catch (e) {
+      setState(() => _actionError = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bookings for my listings'),
+        backgroundColor: AppTheme.white,
+        foregroundColor: AppTheme.textDark,
+        elevation: 0,
+      ),
+      backgroundColor: AppTheme.lightGrey,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? _ErrorView(message: _error!, onRetry: _load)
+                : _bookings.isEmpty
+                    ? const _EmptyView(message: 'No bookings for your listings yet.')
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _bookings.length,
+                        itemBuilder: (_, i) {
+                          final b = _bookings[i];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(b.listingTitle ?? 'Listing ${b.listingId}',
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                                  const SizedBox(height: 4),
+                                  Text('Status: ${b.status.toUpperCase()}',
+                                      style: TextStyle(color: AppTheme.textGrey)),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: b.status.toUpperCase() == 'CONFIRMED'
+                                            ? null
+                                            : () => _updateStatus(b, 'CONFIRMED'),
+                                        icon: const Icon(Icons.check),
+                                        label: const Text('Confirm'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: b.status.toUpperCase() == 'CANCELLED'
+                                            ? null
+                                            : () => _updateStatus(b, 'CANCELLED'),
+                                        icon: const Icon(Icons.cancel),
+                                        label: const Text('Cancel'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_actionError != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(_actionError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                                  ]
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+      ),
+    );
+  }
+}
+
+// ================== Shared UI bits ==================
+class _BookingTile extends StatelessWidget {
+  final Booking booking;
+  const _BookingTile({required this.booking});
+
+  String _format(DateTime? dt) {
+    if (dt == null) return '-';
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              booking.listingTitle ?? 'Listing ${booking.listingId}',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text('From: ${_format(booking.startDate)}  To: ${_format(booking.endDate)}',
+                style: TextStyle(color: AppTheme.textGrey)),
+            const SizedBox(height: 4),
+            Text('Status: ${booking.status.toUpperCase()}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyView extends StatelessWidget {
+  final String message;
+  const _EmptyView({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Text(message, textAlign: TextAlign.center),
+      ),
     );
   }
 }
