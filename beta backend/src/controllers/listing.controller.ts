@@ -159,7 +159,7 @@ export const updateListingController = async (
       });
     }
 
-    const listing = await updateListing(req.params.id, req.body, req.user.id);
+    const listing = await updateListing(req.params.id, req.body, req.user.id, req.user.role);
 
     res.status(200).json({
       success: true,
@@ -195,3 +195,39 @@ export const deleteListingController = async (
   }
 };
 
+// New: My Listings - only listings owned by the authenticated user
+export const getMyListingsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED',
+      });
+    }
+
+    const filters = {
+      category: req.query.category as string | undefined,
+      location: req.query.location as string | undefined,
+      minPrice: req.query.minPrice ? parseInt(req.query.minPrice as string) : undefined,
+      maxPrice: req.query.maxPrice ? parseInt(req.query.maxPrice as string) : undefined,
+      isActive: req.query.isActive !== 'false',
+      page: req.query.page ? parseInt(req.query.page as string) : 1,
+      limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+      ownerId: req.user.id,
+    } as const;
+
+    const result = await getListings(filters);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -6,6 +6,7 @@ import {
   getListingByIdController,
   updateListingController,
   deleteListingController,
+  getMyListingsController,
 } from '../controllers/listing.controller';
 import { authMiddleware, requireRole } from '../middleware/authMiddleware';
 import { validateRequest } from '../middleware/validateRequest';
@@ -24,6 +25,8 @@ const upload = multer({
 
 // Public routes
 router.get('/', getListingsController);
+// My Listings (protected)
+router.get('/my', authMiddleware, getMyListingsController);
 router.get('/:id', getListingByIdController);
 
 // Protected routes
@@ -52,4 +55,3 @@ router.delete(
 );
 
 export default router;
-

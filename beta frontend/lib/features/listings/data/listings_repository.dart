@@ -273,14 +273,28 @@ class ListingsRepository {
   Future<List<Listing>> getMyListings({Map<String, dynamic>? filters, String? ownerId}) async {
     try {
       final queryParams = Map<String, dynamic>.from(filters ?? {});
-      
-      // Add ownerId to query if provided
-      if (ownerId != null) {
-        queryParams['ownerId'] = ownerId;
+      final response = await _apiClient.get(
+        '/listings/my',
+        queryParameters: queryParams,
+      );
+
+      // Handle response formats similar to getListings
+      List<dynamic> listingsData;
+      if (response['data'] is Map && (response['data'] as Map)['listings'] is List) {
+        listingsData = (response['data'] as Map)['listings'] as List<dynamic>;
+      } else if (response['data'] is List) {
+        listingsData = response['data'] as List<dynamic>;
+      } else if (response['listings'] is List) {
+        listingsData = response['listings'] as List<dynamic>;
+      } else if (response is List<dynamic>) {
+        listingsData = response as List<dynamic>;
+      } else {
+        listingsData = [];
       }
-      
-      // Use the standard getListings method with ownerId filter
-      return await getListings(filters: queryParams);
+
+      return listingsData
+          .map((json) => Listing.fromJson(json as Map<String, dynamic>))
+          .toList();
     } on AppApiException {
       rethrow;
     } catch (e) {
@@ -291,4 +305,3 @@ class ListingsRepository {
     }
   }
 }
-

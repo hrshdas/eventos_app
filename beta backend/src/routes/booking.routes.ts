@@ -26,6 +26,8 @@ router.post(
 );
 
 router.get('/me', authMiddleware, getMyBookingsController);
+// Alias for client compatibility
+router.get('/my', authMiddleware, getMyBookingsController);
 
 router.get(
   '/owner',
@@ -35,4 +37,3 @@ router.get(
 );
 
 export default router;
-

@@ -4,6 +4,7 @@ import {
   signupController,
   loginController,
   refreshTokenController,
+  googleLoginController,
 } from '../controllers/auth.controller';
 import { validateRequest } from '../middleware/validateRequest';
 
@@ -31,9 +32,15 @@ const refreshSchema = z.object({
   }),
 });
 
+const googleSchema = z.object({
+  body: z.object({
+    idToken: z.string().min(10, 'idToken is required'),
+  }),
+});
+
 router.post('/signup', validateRequest(signupSchema), signupController);
 router.post('/login', validateRequest(loginSchema), loginController);
 router.post('/refresh', validateRequest(refreshSchema), refreshTokenController);
+router.post('/google', validateRequest(googleSchema), googleLoginController);
 
 export default router;
-

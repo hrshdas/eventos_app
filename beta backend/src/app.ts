@@ -44,6 +44,22 @@ export const createApp = (): Express => {
     res.status(200).json({ status: 'ok' });
   });
 
+  // API root - helpful message
+  app.get('/api', (req, res) => {
+    res.status(200).json({
+      status: 'ok',
+      message: 'Eventos API is running',
+      routes: [
+        'GET /api/health',
+        'GET /api/listings',
+        'GET /api/listings/:id',
+        'POST /api/auth/signup',
+        'POST /api/auth/login',
+        'POST /api/listings'
+      ],
+    });
+  });
+
   // API Routes
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);

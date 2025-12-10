@@ -3,6 +3,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/app_api_exception.dart';
 import '../../../core/auth/auth_storage.dart';
 import '../domain/models/user.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// Repository for authentication operations
 /// Handles signup, login, token refresh, and session management
@@ -217,6 +218,63 @@ class AuthRepository {
     return await _authStorage.hasTokens();
   }
 
+  /// Sign in with Google
+  /// 1) Prompts account selection
+  /// 2) Retrieves idToken
+  /// 3) Exchanges idToken with backend at /auth/google for JWTs and User
+  Future<User> signInWithGoogle() async {
+    try {
+      final googleSignIn = GoogleSignIn(scopes: [
+        'email',
+      ]);
+
+      // Ensure a clean state
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {}
+
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        throw AppApiException(message: 'Google sign-in cancelled');
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw AppApiException(message: 'Failed to retrieve Google ID token');
+      }
+
+      final response = await _apiClient.post(
+        '/auth/google',
+        data: { 'idToken': idToken },
+      );
+
+      // Response shape matches email login ({ data: { user, accessToken, refreshToken } })
+      final Map<String, dynamic> data =
+          (response['data'] as Map<String, dynamic>?) ?? response as Map<String, dynamic>;
+
+      final accessToken = data['accessToken'] as String?;
+      final refreshToken = data['refreshToken'] as String?;
+      final userData = data['user'] as Map<String, dynamic>? ?? data;
+
+      if (accessToken == null || refreshToken == null) {
+        throw AppApiException(message: 'Missing tokens in Google login response');
+      }
+
+      await _authStorage.saveTokens(accessToken: accessToken, refreshToken: refreshToken);
+      await _apiClient.setAccessToken(accessToken);
+
+      return User.fromJson(userData);
+    } on AppApiException {
+      rethrow;
+    } catch (e) {
+      throw AppApiException(
+        message: e.toString(),
+        originalError: e,
+      );
+    }
+  }
+
   /// Get current user from backend
   /// Returns User if logged in and token is valid, null otherwise
   Future<User?> getCurrentUser() async {
@@ -274,4 +332,3 @@ class AuthRepository {
     await _apiClient.clearAccessToken();
   }
 }
-

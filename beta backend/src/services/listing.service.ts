@@ -143,7 +143,8 @@ export const getListingById = async (id: string): Promise<Listing | null> => {
 export const updateListing = async (
   id: string,
   data: UpdateListingData,
-  userId: string
+  userId: string,
+  userRole?: string
 ): Promise<Listing> => {
   // Check if listing exists and user owns it
   const listing = await prisma.listing.findUnique({
@@ -156,8 +157,11 @@ export const updateListing = async (
     throw error;
   }
 
-  if (listing.ownerId !== userId) {
-    const error: ApiError = new Error('You do not have permission to update this listing');
+  // Allow if owner or admin
+  const isOwner = listing.ownerId === userId;
+  const isAdmin = userRole === 'ADMIN';
+  if (!isOwner && !isAdmin) {
+    const error: ApiError = new Error('Not authorized to modify this listing');
     error.statusCode = 403;
     throw error;
   }
@@ -184,7 +188,7 @@ export const deleteListing = async (
   }
 
   if (listing.ownerId !== userId && userRole !== 'ADMIN') {
-    const error: ApiError = new Error('You do not have permission to delete this listing');
+    const error: ApiError = new Error('Not authorized to modify this listing');
     error.statusCode = 403;
     throw error;
   }
@@ -193,4 +197,3 @@ export const deleteListing = async (
     where: { id },
   });
 };
-

@@ -30,6 +30,12 @@ export const config = {
     keySecret: process.env.RAZORPAY_KEY_SECRET || '',
   },
   
+  // Google OAuth
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  },
+  
   // CORS
   cors: {
     allowedOrigins: (process.env.CORS_ALLOWED_ORIGINS

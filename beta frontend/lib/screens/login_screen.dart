@@ -159,11 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           setState(() => _loading = true);
                           try {
                             debugPrint('LoginScreen: Starting login for: $email');
-                            
                             // Login and get user
                             final user = await _authRepo.login(email: email, password: password);
                             debugPrint('LoginScreen: Login successful, user: ${user.name}, email: ${user.email}');
-                            
                             // Update AuthController with user
                             if (mounted) {
                               final authController = Provider.of<AuthController>(context, listen: false);
@@ -171,14 +169,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               authController.setUser(user);
                               debugPrint('LoginScreen: User set. Current user in controller: ${authController.currentUser?.name}');
                               debugPrint('LoginScreen: isLoggedIn: ${authController.isLoggedIn}');
-                              
                               // Wait a tiny bit to ensure listeners are notified
                               await Future.delayed(const Duration(milliseconds: 100));
-                              
                               // Verify user is still set
                               debugPrint('LoginScreen: After delay, user: ${authController.currentUser?.name}');
                             }
-                            
                             if (!mounted) return;
                             debugPrint('LoginScreen: Navigating to MainNavigationScreen...');
                             Navigator.pushReplacement(
@@ -348,18 +343,42 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       height: height,
       child: OutlinedButton(
-        onPressed: () {
-          // Handle Google sign in - navigate directly to main app or OTP
-          // For now, navigate to main app (you can change this to OTP if needed)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MainNavigationScreen(
-                initialIndex: 0,
-              ),
-            ),
-          );
-        },
+        onPressed: _loading
+            ? null
+            : () async {
+                setState(() => _loading = true);
+                try {
+                  // Perform Google Sign-In
+                  final user = await _authRepo.signInWithGoogle();
+
+                  if (!mounted) return;
+
+                  // Update global AuthController
+                  final authController =
+                      Provider.of<AuthController>(context, listen: false);
+                  authController.setUser(user);
+
+                  // Navigate to main app
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MainNavigationScreen(
+                        initialIndex: 0,
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Google sign-in failed: ${e.toString()}'),
+                      backgroundColor: const Color(0xFFE53E3E),
+                    ),
+                  );
+                } finally {
+                  if (mounted) setState(() => _loading = false);
+                }
+              },
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: Colors.grey.shade300),
           shape: RoundedRectangleBorder(

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { signup, login } from '../services/auth.service';
+import { signup, login, googleLogin } from '../services/auth.service';
 import { verifyRefreshToken } from '../utils/jwt';
 import { prisma } from '../config/db';
 import { generateAccessToken } from '../utils/jwt';
@@ -76,3 +76,26 @@ export const refreshTokenController = async (
   }
 };
 
+export const googleLoginController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { idToken } = req.body as { idToken?: string };
+    if (!idToken) {
+      const error: ApiError = new Error('idToken is required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const result = await googleLogin(idToken);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
