@@ -11,7 +11,10 @@
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "start:prod": "npm run migrate:deploy && node dist/index.js"
   },
   "keywords": [
     "rental",
