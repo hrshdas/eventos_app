@@ -9,6 +9,7 @@ import 'edit_profile_screen.dart';
 import '../features/listings/presentation/my_listings_screen.dart';
 import '../features/bookings/data/booking_repository.dart';
 import '../features/bookings/domain/models/booking.dart';
+import '../features/notifications/data/notifications_repository.dart';
 
 // ... (rest of the code remains the same)
 
@@ -106,7 +107,17 @@ class _AccountActionsList extends StatelessWidget {
             },
           ),
           _item(icon: Icons.credit_card, label: 'Payment Methods'),
-          _item(icon: Icons.notifications, label: 'Notifications'),
+          _item(
+            icon: Icons.notifications,
+            label: 'Notifications',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            },
+          ),
           if (isOwner)
             _item(
               icon: Icons.add_business,
@@ -828,6 +839,100 @@ class _StatItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final _repo = NotificationsRepository();
+  bool _loading = true;
+  String? _error;
+  List<NotificationItem> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await _repo.getNotifications();
+      setState(() => _items = list);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markAll() async {
+    try {
+      await _repo.markAllRead();
+      await _load();
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        actions: [
+          TextButton(
+            onPressed: _markAll,
+            child: const Text('Mark all read'),
+          )
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? _ErrorView(message: _error!, onRetry: _load)
+                : _items.isEmpty
+                    ? const _EmptyView(message: 'No notifications')
+                    : ListView.separated(
+                        itemCount: _items.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final n = _items[i];
+                          return ListTile(
+                            title: Text(n.title),
+                            subtitle: Text(n.body),
+                            trailing: n.readAt == null
+                                ? const Icon(Icons.circle, size: 10, color: Colors.red)
+                                : const SizedBox.shrink(),
+                            onTap: () async {
+                              if (n.readAt == null) {
+                                await _repo.markRead(n.id);
+                                if (!mounted) return;
+                                setState(() => _items[i] = NotificationItem(
+                                      id: n.id,
+                                      title: n.title,
+                                      body: n.body,
+                                      data: n.data,
+                                      createdAt: n.createdAt,
+                                      readAt: DateTime.now(),
+                                    ));
+                              }
+                            },
+                          );
+                        },
+                      ),
+      ),
     );
   }
 }

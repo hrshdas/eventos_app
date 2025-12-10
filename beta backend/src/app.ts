@@ -12,6 +12,7 @@ import listingRoutes from './routes/listing.routes';
 import bookingRoutes from './routes/booking.routes';
 import paymentRoutes from './routes/payment.routes';
 import aiRoutes from './routes/ai.routes';
+import notificationRoutes from './routes/notification.routes';
 
 export const createApp = (): Express => {
   const app = express();
@@ -66,6 +67,7 @@ export const createApp = (): Express => {
   app.use('/api/listings', listingRoutes);
   app.use('/api/bookings', bookingRoutes);
   app.use('/api/payments', paymentRoutes);
+  app.use('/api/notifications', notificationRoutes);
   app.use('/api/ai', aiRoutes);
 
   // Error handler (must be last)

@@ -106,12 +106,36 @@ export const createBooking = async (
     },
   });
 
+  // In-app notification for owner (best-effort)
+  try {
+    await prisma.notification.create({
+      data: {
+        userId: (listing as any).ownerId,
+        title: 'New booking',
+        body: `Your listing "${(listing as any).title ?? 'Listing'}" was booked`,
+        data: {
+          type: 'BOOKING_CREATED',
+          bookingId: booking.id,
+          listingId,
+          listingTitle: (listing as any).title ?? null,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          userId,
+          totalAmount,
+          status: booking.status,
+        },
+      },
+    });
+  } catch (e) {
+    // ignore notification errors
+  }
+
   // Best-effort notify owner (webhook)
   notifyOwnerOfBooking({
     bookingId: booking.id,
     listingId,
-    listingTitle: listing.title,
-    ownerId: listing.ownerId,
+    listingTitle: (listing as any).title,
+    ownerId: (listing as any).ownerId,
     userId,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),

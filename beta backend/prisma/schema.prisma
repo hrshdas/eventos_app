@@ -19,6 +19,7 @@ model User {
   bookings      Booking[]
   ownedListings Listing[]
   reviews       Review[]
+  notifications Notification[]
 
   @@index([email])
   @@map("users")
@@ -98,6 +99,20 @@ model Review {
   @@index([listingId])
   @@index([userId])
   @@map("reviews")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 enum UserRole {
