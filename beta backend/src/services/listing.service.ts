@@ -37,8 +37,8 @@ export interface ListingFilters {
 export const createListing = async (
   data: CreateListingData
 ): Promise<Listing> => {
-  // Auto-approve listings for OWNER and ADMIN accounts
-  const isActive = data.userRole === 'OWNER' || data.userRole === 'ADMIN';
+  // Immediately list newly created listings
+  const isActive = true;
   
   return prisma.listing.create({
     data: {
@@ -49,7 +49,7 @@ export const createListing = async (
       pricePerDay: data.pricePerDay,
       location: data.location,
       images: data.images || [],
-      isActive: isActive, // Auto-approve for OWNER/ADMIN
+      isActive: isActive, // Always active on creation
     },
   });
 };
