@@ -11,6 +11,7 @@ import '../core/location/location_provider.dart';
 import '../widgets/shared_header_card.dart';
 import 'cart_screen.dart';
 import '../features/cart/data/cart_repository.dart';
+import 'packages_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +43,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(builder: (_) => const CartScreen()),
                       );
                     },
+                    onSearch: (q) => setState(() => _searchQuery = q.trim()),
                   ),
                   const SizedBox(height: 24),
-                  const PopularPackagesSection(),
+                  PopularPackagesSection(searchQuery: _searchQuery),
                   const SizedBox(height: 24),
                   const ShopByEventSection(),
                   const SizedBox(height: 24),
@@ -136,9 +139,9 @@ class HomeScreenContent extends StatelessWidget {
   }
 }
 
-// Popular Packages Section
 class PopularPackagesSection extends StatelessWidget {
-  const PopularPackagesSection({super.key});
+  final String searchQuery;
+  const PopularPackagesSection({super.key, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -171,11 +174,15 @@ class PopularPackagesSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('VIEW ALL', style: AppTheme.viewAllText),
                     ),
                   ),
                 ),
@@ -184,9 +191,13 @@ class PopularPackagesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // Use ListingsList widget with category filter for packages
-        const ListingsList(
-          filters: {'category': 'package'},
+        ListingsList(
+          filters: {
+            'category': 'package',
+            'isActive': true,
+            if (searchQuery.isNotEmpty) 'search': searchQuery,
+            'limit': 20,
+          },
           horizontal: true,
           height: 260,
           itemLimit: 10,
@@ -711,112 +722,112 @@ class _RecommendedCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 140,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tag,
-                      style: const TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 140,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$rating ($reviews)',
-                      style: AppTheme.ratingText,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  style: AppTheme.cardTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkGrey,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: AppTheme.buttonText,
+                      child: Text(
+                        tag,
+                        style: const TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$rating ($reviews)',
+                        style: AppTheme.ratingText,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: AppTheme.cardTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.textDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkGrey,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: AppTheme.buttonText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }

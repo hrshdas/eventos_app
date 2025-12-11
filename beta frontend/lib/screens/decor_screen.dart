@@ -3,6 +3,11 @@ import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
 import '../widgets/shared_header_card.dart';
+import '../features/listings/data/listings_repository.dart';
+import '../features/listings/domain/models/listing.dart';
+import '../core/api/app_api_exception.dart';
+import '../api/api_config.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class DecorScreen extends StatefulWidget {
   const DecorScreen({super.key});
@@ -14,6 +19,17 @@ class DecorScreen extends StatefulWidget {
 class _DecorScreenState extends State<DecorScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
+  String _searchQuery = '';
+  Map<String, dynamic> _incomingFilters = const {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['filters'] is Map<String, dynamic>) {
+      _incomingFilters = Map<String, dynamic>.from(args['filters'] as Map<String, dynamic>);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +49,7 @@ class _DecorScreenState extends State<DecorScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
+                onSearch: (q) => setState(() => _searchQuery = q.trim()),
               ),
               const SizedBox(height: 16),
               _FilterChipsRow(
@@ -44,7 +61,14 @@ class _DecorScreenState extends State<DecorScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              const _DecorGrid(),
+              _DecorGrid(
+                filters: {
+                  'category': 'decor',
+                  'isActive': true,
+                  if (_searchQuery.isNotEmpty) 'search': _searchQuery,
+                  ..._incomingFilters,
+                },
+              ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
               const SizedBox(height: 80), // Space for bottom nav
@@ -97,126 +121,73 @@ class _DecorScreenState extends State<DecorScreen> {
   }
 }
 
-// Filter Chips Row
-class _FilterChipsRow extends StatelessWidget {
-  final int selectedIndex;
-  final Function(int) onTap;
-
-  const _FilterChipsRow({
-    required this.selectedIndex,
-    required this.onTap,
-  });
+class _DecorGrid extends StatefulWidget {
+  final Map<String, dynamic> filters;
+  const _DecorGrid({required this.filters});
 
   @override
-  Widget build(BuildContext context) {
-    final filters = [
-      {'label': 'Event Type', 'icon': Icons.celebration},
-      {'label': 'Theme / Style', 'icon': Icons.palette},
-      {'label': 'Venue Type', 'icon': Icons.business},
-      {'label': 'Guests', 'icon': Icons.people},
-      {'label': 'Budget', 'icon': Icons.attach_money},
-    ];
-
-    return SizedBox(
-      height: 40,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: filters.length,
-        itemBuilder: (context, index) {
-          final isSelected = index == selectedIndex;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => onTap(index),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppTheme.white : const Color(0xFFF3F3F3),
-                  borderRadius: BorderRadius.circular(20),
-                  border: isSelected
-                      ? Border.all(color: AppTheme.primaryColor, width: 1)
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      filters[index]['icon'] as IconData,
-                      size: 16,
-                      color: isSelected ? AppTheme.textDark : AppTheme.textGrey,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      filters[index]['label'] as String,
-                      style: TextStyle(
-                        color: isSelected ? AppTheme.textDark : AppTheme.textGrey,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  State<_DecorGrid> createState() => _DecorGridState();
 }
 
-// Decor Grid Section
-class _DecorGrid extends StatelessWidget {
-  const _DecorGrid();
+class _DecorGridState extends State<_DecorGrid> {
+  final ListingsRepository _repo = ListingsRepository();
+  List<Listing> _items = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final resp = await _repo.getListings(filters: widget.filters);
+      if (!mounted) return;
+      setState(() { _items = resp; _loading = false; });
+    } on AppApiException catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  String _img(Listing l) {
+    final p = (l.images != null && l.images!.isNotEmpty) ? l.images!.first : (l.imageUrl ?? '');
+    if (p.isEmpty) return '';
+    return p.startsWith('http') ? p : '$apiPublicBase/$p';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final decorItems = [
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Professional DJ Equipment',
-        'rating': 4.8,
-        'reviews': 256,
-        'price': '₹8,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400',
-      },
-      {
-        'title': 'Elegant Table Settings',
-        'rating': 4.6,
-        'reviews': 89,
-        'price': '₹3,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400',
-      },
-      {
-        'title': 'Premium Sound System',
-        'rating': 4.9,
-        'reviews': 312,
-        'price': '₹5,000/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
-      },
-      {
-        'title': 'Luxury Lighting Setup',
-        'rating': 4.7,
-        'reviews': 145,
-        'price': '₹4,200/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-      },
-      {
-        'title': 'Outdoor Tent & Decor',
-        'rating': 4.4,
-        'reviews': 98,
-        'price': '₹6,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400',
-      },
-    ];
-
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: _load, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    if (_items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(child: Text('No decor items found', style: TextStyle(color: AppTheme.textGrey))),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
@@ -228,14 +199,16 @@ class _DecorGrid extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         ),
-        itemCount: decorItems.length,
+        itemCount: _items.length,
         itemBuilder: (context, index) {
+          final l = _items[index];
           return _DecorCard(
-            title: decorItems[index]['title'] as String,
-            rating: decorItems[index]['rating'] as double,
-            reviews: decorItems[index]['reviews'] as int,
-            price: decorItems[index]['price'] as String,
-            imageUrl: decorItems[index]['imageUrl'] as String,
+            title: l.title,
+            rating: l.rating ?? 0,
+            reviews: l.reviewCount ?? 0,
+            price: l.formattedPrice,
+            imageUrl: _img(l),
+            listingId: l.id,
           );
         },
       ),
@@ -250,6 +223,7 @@ class _DecorCard extends StatelessWidget {
   final int reviews;
   final String price;
   final String imageUrl;
+  final String? listingId;
 
   const _DecorCard({
     required this.title,
@@ -257,6 +231,7 @@ class _DecorCard extends StatelessWidget {
     required this.reviews,
     required this.price,
     required this.imageUrl,
+    this.listingId,
   });
 
   @override
@@ -267,6 +242,7 @@ class _DecorCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
+              listingId: listingId,
               title: title,
               imageUrl: imageUrl,
               rating: rating,
@@ -289,138 +265,148 @@ class _DecorCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                // Available Tag
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 110,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
-                    child: const Text(
-                      'Available',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  // Available Tag
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                SizedBox(
-                  height: 32,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        '$rating ($reviews)',
-                        style: const TextStyle(
-                          color: AppTheme.textGrey,
+                      child: const Text(
+                        'Available',
+                        style: TextStyle(
+                          color: AppTheme.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // Price
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  SizedBox(
+                    height: 32,
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '$rating ($reviews)',
+                          style: const TextStyle(
+                            color: AppTheme.textGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Price
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        CartRepository().addItem(
+                          id: listingId ?? title,
+                          title: title,
+                          pricePerDay: 0,
+                          imageUrl: imageUrl,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }
