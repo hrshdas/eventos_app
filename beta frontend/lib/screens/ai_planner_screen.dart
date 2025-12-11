@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
+import 'packages_screen.dart';
 
 class AiPlannerScreen extends StatefulWidget {
   const AiPlannerScreen({super.key});
@@ -108,8 +109,29 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
                 guests: _guestsCtrl.text.trim(),
                 theme: _themeCtrl.text.trim(),
                 onViewPackages: () {
-                  // ignore: avoid_print
-                  print('View matching packages tapped');
+                  int? maxBudget;
+                  final txt = _budgetCtrl.text.replaceAll(',', '');
+                  final match = RegExp(r'(\d{4,})[^\d]*(\d{4,})?').firstMatch(txt);
+                  if (match != null) {
+                    final upper = match.group(2) ?? match.group(1);
+                    if (upper != null) maxBudget = int.tryParse(upper);
+                  }
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const PackagesScreen(),
+                      settings: RouteSettings(
+                        arguments: {
+                          'filters': {
+                            'category': 'package',
+                            if (maxBudget != null) 'maxPrice': maxBudget,
+                            if (_locationCtrl.text.trim().isNotEmpty) 'location': _locationCtrl.text.trim(),
+                            'isActive': true,
+                          },
+                        },
+                      ),
+                    ),
+                  );
                 },
               ),
               const SizedBox(height: 24),
@@ -225,7 +247,30 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
               location: _locationCtrl.text.trim(),
               guests: _guestsCtrl.text.trim(),
               theme: _themeCtrl.text.trim(),
-              onViewPackages: () { /* TODO: route to filtered listing */ },
+              onViewPackages: () {
+                int? maxBudget;
+                final txt = _budgetCtrl.text.replaceAll(',', '');
+                final match = RegExp(r'(\d{4,})[^\d]*(\d{4,})?').firstMatch(txt);
+                if (match != null) {
+                  final upper = match.group(2) ?? match.group(1);
+                  if (upper != null) maxBudget = int.tryParse(upper);
+                }
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PackagesScreen(),
+                    settings: RouteSettings(
+                      arguments: {
+                        'filters': {
+                          'category': 'package',
+                          if (maxBudget != null) 'maxPrice': maxBudget,
+                          if (_locationCtrl.text.trim().isNotEmpty) 'location': _locationCtrl.text.trim(),
+                          'isActive': true,
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
           ],
