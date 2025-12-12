@@ -28,7 +28,20 @@ class _EventScreenState extends State<EventScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  const SharedHeaderCard(),
+                  SharedHeaderCard(
+                    onSearch: (q) {
+                      final query = q.trim();
+                      if (query.isEmpty) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PackagesScreen(),
+                          settings: RouteSettings(arguments: {
+                            'filters': {'search': query},
+                          }),
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 24),
                   const _BrowseCategoriesSection(),
                   const SizedBox(height: 24),
@@ -132,7 +145,20 @@ class EventScreenContent extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                const SharedHeaderCard(),
+                SharedHeaderCard(
+                  onSearch: (q) {
+                    final query = q.trim();
+                    if (query.isEmpty) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PackagesScreen(),
+                        settings: RouteSettings(arguments: {
+                          'filters': {'search': query},
+                        }),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 24),
                 const _BrowseCategoriesSection(),
                 const SizedBox(height: 24),

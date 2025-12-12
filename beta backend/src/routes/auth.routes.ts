@@ -1,3 +1,7 @@
+/**
+ * Auth routes
+ * - Adds POST /google (Sign in with Google) with strict auth rate limiter
+ */
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -7,6 +11,7 @@ import {
   googleLoginController,
 } from '../controllers/auth.controller';
 import { validateRequest } from '../middleware/validateRequest';
+import { authRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -41,6 +46,6 @@ const googleSchema = z.object({
 router.post('/signup', validateRequest(signupSchema), signupController);
 router.post('/login', validateRequest(loginSchema), loginController);
 router.post('/refresh', validateRequest(refreshSchema), refreshTokenController);
-router.post('/google', validateRequest(googleSchema), googleLoginController);
+router.post('/google', authRateLimiter, validateRequest(googleSchema), googleLoginController);
 
 export default router;

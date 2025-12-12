@@ -193,10 +193,11 @@ class ListingCard extends StatelessWidget {
                     child: OutlinedButton(
                       onPressed: onAddToCart ?? () {
                         CartRepository().addItem(
-                          id: listing.id,
+                          listingId: listing.id,
                           title: listing.title,
-                          pricePerDay: listing.pricePerDay ?? 0,
+                          subtitle: listing.description ?? '',
                           imageUrl: _buildImageUrl(listing.imageUrl, listing.images),
+                          pricePerDay: listing.price ?? 0,
                         );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Added to cart')),

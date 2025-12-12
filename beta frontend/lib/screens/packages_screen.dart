@@ -20,6 +20,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
   int _selectedFilterIndex = 0;
   String _searchQuery = '';
   Map<String, dynamic> _incomingFilters = const {};
+  String? _categoryFilter; // 'decor' | 'rental' | 'package' | null for All
 
   @override
   void didChangeDependencies() {
@@ -32,6 +33,18 @@ class _PackagesScreenState extends State<PackagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final crossCategory = (_incomingFilters['crossCategory'] == true);
+    final hasExplicitCategory = _incomingFilters.containsKey('category');
+
+    // Build filters dynamically. If crossCategory is true, do not force 'package'.
+    final effectiveFilters = <String, dynamic>{
+      'isActive': true,
+      if (!crossCategory && !hasExplicitCategory) 'category': 'package',
+      if (crossCategory && _categoryFilter != null) 'category': _categoryFilter,
+      if (_searchQuery.isNotEmpty) 'search': _searchQuery,
+      ..._incomingFilters,
+    };
+
     return Scaffold(
       backgroundColor: AppTheme.lightGrey,
       body: SafeArea(
@@ -50,6 +63,42 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 ),
                 onSearch: (q) => setState(() => _searchQuery = q.trim()),
               ),
+              if (crossCategory) ...[
+                const SizedBox(height: 12),
+                // Category chips for cross-category search
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _CategoryChip(
+                        label: 'All',
+                        isActive: _categoryFilter == null,
+                        onTap: () => setState(() => _categoryFilter = null),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Decor',
+                        isActive: _categoryFilter == 'decor',
+                        onTap: () => setState(() => _categoryFilter = 'decor'),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Rentals',
+                        isActive: _categoryFilter == 'rental',
+                        onTap: () => setState(() => _categoryFilter = 'rental'),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Packages',
+                        isActive: _categoryFilter == 'package',
+                        onTap: () => setState(() => _categoryFilter = 'package'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               _FilterTabsRow(
                 selectedIndex: _selectedFilterIndex,
@@ -61,12 +110,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
               ),
               const SizedBox(height: 16),
               _PackagesGrid(
-                filters: {
-                  'category': 'package',
-                  'isActive': true,
-                  if (_searchQuery.isNotEmpty) 'search': _searchQuery,
-                  ..._incomingFilters,
-                },
+                filters: effectiveFilters,
               ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
@@ -116,6 +160,64 @@ class _PackagesScreenState extends State<PackagesScreen> {
           label: 'Profile',
         ),
       ],
+    );
+  }
+}
+
+// Filter Tabs Row (restored)
+class _FilterTabsRow extends StatelessWidget {
+  final int selectedIndex;
+  final Function(int) onTap;
+
+  const _FilterTabsRow({
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = [
+      {'label': 'Event Type', 'icon': Icons.celebration},
+      {'label': 'Theme / Style', 'icon': Icons.palette},
+      {'label': 'Venue Type', 'icon': Icons.business},
+      {'label': 'Guests', 'icon': Icons.people},
+      {'label': 'Budget', 'icon': Icons.attach_money},
+    ];
+
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: filters.length,
+        itemBuilder: (context, index) {
+          final isSelected = index == selectedIndex;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => onTap(index),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppTheme.white : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: isSelected
+                      ? Border.all(color: AppTheme.primaryColor, width: 1)
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Icon(filters[index]['icon'] as IconData, size: 16, color: AppTheme.textDark),
+                    const SizedBox(width: 6),
+                    Text(filters[index]['label'] as String,
+                        style: const TextStyle(color: AppTheme.textDark, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -463,6 +565,37 @@ class _RecommendedSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _CategoryChip({required this.label, required this.isActive, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : const Color(0xFFF3F3F3),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.white : AppTheme.textDark,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import '../widgets/shared_header_card.dart';
 import '../features/listings/data/listings_repository.dart';
 import '../features/listings/domain/models/listing.dart';
 import '../core/api/app_api_exception.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class RentalsScreen extends StatefulWidget {
   const RentalsScreen({super.key});
@@ -17,6 +18,7 @@ class RentalsScreen extends StatefulWidget {
 class _RentalsScreenState extends State<RentalsScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class _RentalsScreenState extends State<RentalsScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
+                onSearch: (q) => setState(() => _searchQuery = q.trim()),
               ),
               const SizedBox(height: 16),
               _FilterTabsRow(
@@ -47,9 +50,9 @@ class _RentalsScreenState extends State<RentalsScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              _RentalsGrid(),
+              _RentalsGrid(searchQuery: _searchQuery),
               const SizedBox(height: 24),
-              _RecommendedSection(),
+              _RecommendedSection(searchQuery: _searchQuery),
               const SizedBox(height: 80), // Space for bottom nav
             ],
           ),
@@ -171,7 +174,9 @@ class _FilterTabsRow extends StatelessWidget {
 
 // Rentals Grid Section
 class _RentalsGrid extends StatefulWidget {
-  const _RentalsGrid();
+  final String searchQuery;
+
+  const _RentalsGrid({this.searchQuery = ''});
 
   @override
   State<_RentalsGrid> createState() => _RentalsGridState();
@@ -181,7 +186,7 @@ class _RentalsGridState extends State<_RentalsGrid> {
   final ListingsRepository _repository = ListingsRepository();
   List<Listing> _listings = [];
   bool _isLoading = true;
-  String? _errorMessage;
+  String? _error;
 
   @override
   void initState() {
@@ -189,16 +194,27 @@ class _RentalsGridState extends State<_RentalsGrid> {
     _loadListings();
   }
 
+  @override
+  void didUpdateWidget(covariant _RentalsGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      _loadListings();
+    }
+  }
+
   Future<void> _loadListings() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
+      _error = null;
     });
 
     try {
-      final listings = await _repository.getListings(
-        filters: {'category': 'rental'},
-      );
+      final filters = {
+        'category': 'rental',
+        'limit': '20',
+        if (widget.searchQuery.isNotEmpty) 'search': widget.searchQuery,
+      };
+      final listings = await _repository.getListings(filters: filters);
       if (mounted) {
         setState(() {
           _listings = listings;
@@ -208,14 +224,14 @@ class _RentalsGridState extends State<_RentalsGrid> {
     } on AppApiException catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.message;
+          _error = e.message;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load rentals: ${e.toString()}';
+          _error = e.toString();
           _isLoading = false;
         });
       }
@@ -231,7 +247,7 @@ class _RentalsGridState extends State<_RentalsGrid> {
       );
     }
 
-    if (_errorMessage != null) {
+    if (_error != null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
         child: Center(
@@ -239,7 +255,7 @@ class _RentalsGridState extends State<_RentalsGrid> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _errorMessage!,
+                _error!,
                 style: const TextStyle(color: Colors.red),
                 textAlign: TextAlign.center,
               ),
@@ -343,145 +359,164 @@ class _RentalCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                // Available Tag
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 110,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
-                    child: const Text(
-                      'Available',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  // Available Tag
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                SizedBox(
-                  height: 32,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        '$rating ($reviews)',
-                        style: const TextStyle(
-                          color: AppTheme.textGrey,
+                      child: const Text(
+                        'Available',
+                        style: TextStyle(
+                          color: AppTheme.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // Price
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  SizedBox(
+                    height: 32,
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '$rating ($reviews)',
+                          style: const TextStyle(
+                            color: AppTheme.textGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Price
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Parse numeric price if possible from formatted string like ₹2,500/day
+                        double parsedPrice = 0;
+                        final digits = RegExp(r"(\d[\d,]*)").firstMatch(price.replaceAll(',', ''))?.group(1);
+                        if (digits != null) {
+                          parsedPrice = double.tryParse(digits) ?? 0;
+                        }
+                        CartRepository().addItem(
+                          listingId: listingId ?? title,
+                          title: title,
+                          subtitle: '',
+                          imageUrl: imageUrl,
+                          pricePerDay: parsedPrice,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }
 
 // Recommended Section
 class _RecommendedSection extends StatefulWidget {
-  const _RecommendedSection();
+  final String searchQuery;
+
+  const _RecommendedSection({this.searchQuery = ''});
 
   @override
   State<_RecommendedSection> createState() => _RecommendedSectionState();
@@ -498,11 +533,22 @@ class _RecommendedSectionState extends State<_RecommendedSection> {
     _loadRecommended();
   }
 
+  @override
+  void didUpdateWidget(covariant _RecommendedSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQuery != widget.searchQuery) {
+      _loadRecommended();
+    }
+  }
+
   Future<void> _loadRecommended() async {
     try {
-      final listings = await _repository.getListings(
-        filters: {'category': 'rental', 'limit': '2'},
-      );
+      final filters = {
+        'category': 'rental',
+        'limit': '2',
+        if (widget.searchQuery.isNotEmpty) 'search': widget.searchQuery,
+      };
+      final listings = await _repository.getListings(filters: filters);
       if (mounted) {
         setState(() {
           _recommendedListings = listings.take(2).toList();
