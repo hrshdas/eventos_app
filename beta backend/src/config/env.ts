@@ -1,3 +1,8 @@
+/**
+ * Environment configuration loader
+ * - Adds support for Google Sign-In client IDs per platform (ANDROID/IOS/WEB)
+ * - Falls back to single GOOGLE_CLIENT_ID if specific ones are not provided
+ */
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -30,10 +35,26 @@ export const config = {
     keySecret: process.env.RAZORPAY_KEY_SECRET || '',
   },
   
-  // Google OAuth
+  // Google OAuth / Sign-In
   google: {
+    // Back-compat single client id
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    // Platform-specific client IDs (optional)
+    clientIdAndroid: process.env.GOOGLE_CLIENT_ID_ANDROID || '',
+    clientIdIos: process.env.GOOGLE_CLIENT_ID_IOS || '',
+    clientIdWeb: process.env.GOOGLE_CLIENT_ID_WEB || '',
+    // Computed audiences to validate against
+    get audiences(): string[] {
+      const ids = [
+        process.env.GOOGLE_CLIENT_ID_ANDROID || '',
+        process.env.GOOGLE_CLIENT_ID_IOS || '',
+        process.env.GOOGLE_CLIENT_ID_WEB || '',
+        process.env.GOOGLE_CLIENT_ID || '',
+      ].map((s) => s.trim()).filter(Boolean);
+      // Ensure unique
+      return Array.from(new Set(ids));
+    },
   },
   
   // CORS

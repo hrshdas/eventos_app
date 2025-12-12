@@ -63,7 +63,7 @@ class _DecorScreenState extends State<DecorScreen> {
               const SizedBox(height: 16),
               _DecorGrid(
                 filters: {
-                  'category': 'decor',
+                  'category': 'decoration',
                   'isActive': true,
                   if (_searchQuery.isNotEmpty) 'search': _searchQuery,
                   ..._incomingFilters,
@@ -209,6 +209,71 @@ class _DecorGridState extends State<_DecorGrid> {
             price: l.formattedPrice,
             imageUrl: _img(l),
             listingId: l.id,
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Filter Chips Row
+class _FilterChipsRow extends StatelessWidget {
+  final int selectedIndex;
+  final Function(int) onTap;
+
+  const _FilterChipsRow({
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = [
+      {'label': 'Event Type', 'icon': Icons.celebration},
+      {'label': 'Theme / Style', 'icon': Icons.palette},
+      {'label': 'Venue Type', 'icon': Icons.business},
+      {'label': 'Guests', 'icon': Icons.people},
+      {'label': 'Budget', 'icon': Icons.attach_money},
+    ];
+
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: filters.length,
+        itemBuilder: (context, index) {
+          final isSelected = index == selectedIndex;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => onTap(index),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppTheme.white : const Color(0xFFF3F3F3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: isSelected ? Border.all(color: AppTheme.primaryColor, width: 1) : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(filters[index]['icon'] as IconData,
+                        size: 16,
+                        color: isSelected ? AppTheme.textDark : AppTheme.textGrey),
+                    const SizedBox(width: 6),
+                    Text(
+                      filters[index]['label'] as String,
+                      style: TextStyle(
+                        color: isSelected ? AppTheme.textDark : AppTheme.textGrey,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -372,11 +437,18 @@ class _DecorCard extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
+                        // Parse numeric price if possible from formatted string like ₹2,500/day
+                        double parsedPrice = 0;
+                        final digits = RegExp(r"(\d[\d,]*)").firstMatch(price.replaceAll(',', ''))?.group(1);
+                        if (digits != null) {
+                          parsedPrice = double.tryParse(digits) ?? 0;
+                        }
                         CartRepository().addItem(
-                          id: listingId ?? title,
+                          listingId: listingId ?? title,
                           title: title,
-                          pricePerDay: 0,
+                          subtitle: '',
                           imageUrl: imageUrl,
+                          pricePerDay: parsedPrice,
                         );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Added to cart')),

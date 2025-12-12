@@ -12,6 +12,7 @@ import '../widgets/shared_header_card.dart';
 import 'cart_screen.dart';
 import '../features/cart/data/cart_repository.dart';
 import 'packages_screen.dart';
+import 'event_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,20 +36,36 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  SharedHeaderCard(
-                    showCartIcon: true,
-                    cartItemCount: CartRepository().itemCount,
-                    onCartTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const CartScreen()),
+                  AnimatedBuilder(
+                    animation: CartRepository(),
+                    builder: (context, _) {
+                      return SharedHeaderCard(
+                        showCartIcon: true,
+                        cartItemCount: CartRepository().itemCount,
+                        onCartTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const CartScreen()),
+                          );
+                        },
+                        onSearch: (q) {
+                          final query = q.trim();
+                          if (query.isEmpty) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PackagesScreen(),
+                              settings: RouteSettings(arguments: {
+                                'filters': {'search': query, 'crossCategory': true},
+                              }),
+                            ),
+                          );
+                        },
                       );
                     },
-                    onSearch: (q) => setState(() => _searchQuery = q.trim()),
                   ),
                   const SizedBox(height: 24),
                   PopularPackagesSection(searchQuery: _searchQuery),
                   const SizedBox(height: 24),
-                  const ShopByEventSection(),
+                  ShopByEventSection(),
                   const SizedBox(height: 24),
                   const RecommendedSection(),
                   const SizedBox(height: 80), // Space for bottom nav
@@ -102,8 +119,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // Content-only version for use in MainNavigationScreen
-class HomeScreenContent extends StatelessWidget {
+class HomeScreenContent extends StatefulWidget {
   const HomeScreenContent({super.key});
+
+  @override
+  State<HomeScreenContent> createState() => _HomeScreenContentState();
+}
+
+class _HomeScreenContentState extends State<HomeScreenContent> {
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -114,19 +138,36 @@ class HomeScreenContent extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                SharedHeaderCard(
-                  showCartIcon: true,
-                  cartItemCount: CartRepository().itemCount,
-                  onCartTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CartScreen()),
+                AnimatedBuilder(
+                  animation: CartRepository(),
+                  builder: (context, _) {
+                    return SharedHeaderCard(
+                      showCartIcon: true,
+                      cartItemCount: CartRepository().itemCount,
+                      onCartTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const CartScreen()),
+                        );
+                      },
+                      onSearch: (q) {
+                        final query = q.trim();
+                        if (query.isEmpty) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PackagesScreen(),
+                            settings: RouteSettings(arguments: {
+                              'filters': {'search': query, 'crossCategory': true},
+                            }),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
                 const SizedBox(height: 24),
-                const PopularPackagesSection(),
+                PopularPackagesSection(searchQuery: _searchQuery),
                 const SizedBox(height: 24),
-                const ShopByEventSection(),
+                ShopByEventSection(),
                 const SizedBox(height: 24),
                 const RecommendedSection(),
                 const SizedBox(height: 80), // Space for bottom nav
@@ -340,9 +381,34 @@ class _PopularPackageCard extends StatelessWidget {
   }
 }
 
-// Shop by Event Section
-class ShopByEventSection extends StatelessWidget {
-  const ShopByEventSection({super.key});
+// Shop by Event Section (toggleable filters)
+class ShopByEventSection extends StatefulWidget {
+  final ValueChanged<String?>? onChanged; // Selected filter key or null if cleared
+
+  ShopByEventSection({super.key, this.onChanged});
+
+  @override
+  State<ShopByEventSection> createState() => _ShopByEventSectionState();
+}
+
+class _ShopByEventSectionState extends State<ShopByEventSection> {
+  // -1 means no selection
+  int _selectedIndex = -1;
+
+  final List<_FilterOption> _options = const [
+    _FilterOption('Event!', Icons.location_on, 'event'),
+    _FilterOption('Party', Icons.bolt, 'party'),
+    _FilterOption('Birthday', Icons.edit, 'birthday'),
+    _FilterOption('Wedding', Icons.celebration, 'wedding'),
+  ];
+
+  void _toggle(int index) {
+    setState(() {
+      // Tap again to clear selection
+      _selectedIndex = (_selectedIndex == index) ? -1 : index;
+    });
+    widget.onChanged?.call(_selectedIndex == -1 ? null : _options[_selectedIndex].key);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -375,11 +441,18 @@ class ShopByEventSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const EventScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'VIEW ALL',
+                        style: AppTheme.viewAllText,
+                      ),
                     ),
                   ),
                 ),
@@ -395,29 +468,15 @@ class ShopByEventSection extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _CategoryChip(
-                  label: 'Event!',
-                  icon: Icons.location_on,
-                  isActive: true,
-                ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Party',
-                  icon: Icons.bolt,
-                  isActive: false,
-                ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Birthday',
-                  icon: Icons.edit,
-                  isActive: false,
-                ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Wedding',
-                  icon: Icons.celebration,
-                  isActive: false,
-                ),
+                for (int i = 0; i < _options.length; i++) ...[
+                  _CategoryChip(
+                    label: _options[i].label,
+                    icon: _options[i].icon,
+                    isActive: _selectedIndex == i,
+                    onTap: () => _toggle(i),
+                  ),
+                  if (i < _options.length - 1) const SizedBox(width: 8),
+                ]
               ],
             ),
           ),
@@ -427,14 +486,14 @@ class ShopByEventSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
-            children: [
+            children: const [
               _VerticalThemeCard(
                 title: 'Create Your Custom Theme',
                 subtitle: 'Upload a moodboard + fill event details',
                 price: '₹15,000',
                 imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               _VerticalThemeCard(
                 title: 'Create Your Custom Theme',
                 subtitle: 'Upload a moodboard + fill event details',
@@ -449,44 +508,57 @@ class ShopByEventSection extends StatelessWidget {
   }
 }
 
+class _FilterOption {
+  final String label;
+  final IconData icon;
+  final String key;
+  const _FilterOption(this.label, this.icon, this.key);
+}
+
 class _CategoryChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isActive;
+  final VoidCallback? onTap;
 
   const _CategoryChip({
     required this.label,
     required this.icon,
     required this.isActive,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isActive ? AppTheme.primaryColor : AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        border: isActive ? null : Border.all(color: AppTheme.textGrey.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 16,
-            color: isActive ? AppTheme.white : AppTheme.textGrey,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : AppTheme.white,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive ? null : Border.all(color: AppTheme.textGrey.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
               color: isActive ? AppTheme.white : AppTheme.textGrey,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? AppTheme.white : AppTheme.textGrey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -629,11 +701,18 @@ class RecommendedSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'VIEW ALL',
+                        style: AppTheme.viewAllText,
+                      ),
                     ),
                   ),
                 ),
@@ -808,7 +887,25 @@ class _RecommendedCard extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        // Parse numeric price from string like ₹2,500/day
+                        double parsedPrice = 0;
+                        final raw = price.replaceAll(',', '');
+                        final match = RegExp(r"(\d+(?:\.\d+)?)").firstMatch(raw);
+                        if (match != null) {
+                          parsedPrice = double.tryParse(match.group(1)!) ?? 0;
+                        }
+                        CartRepository().addItem(
+                          listingId: title,
+                          title: title,
+                          subtitle: '',
+                          imageUrl: imageUrl,
+                          pricePerDay: parsedPrice,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.darkGrey,
                         padding: const EdgeInsets.symmetric(vertical: 10),

@@ -8,6 +8,7 @@ import '../core/api/app_api_exception.dart';
 import 'gallery_screen.dart';
 import '../features/bookings/data/booking_repository.dart';
 import 'booking_success_screen.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class PackageDetailsScreen extends StatefulWidget {
   final String? listingId; // If provided, fetch full listing details
@@ -38,24 +39,49 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   Listing? _listing;
   bool _isLoading = false;
   String? _error;
-  
+
   int _currentIndex = 0;
   int _quantity = 1;
   bool _showFullDescription = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.listingId != null) {
-      _loadListing();
-    } else if ((widget.title ?? '').isNotEmpty) {
-      _lookupListingByTitle(widget.title!.trim());
+  void _addToCart() {
+    // Prefer loaded listing; fallback to widget-level props
+    final id = _listing?.id ?? widget.listingId ?? (widget.title ?? 'item');
+    final title = _listing?.title ?? widget.title ?? 'Item';
+    final subtitle = _listing?.description ?? '';
+    final imageUrl = _listing?.imageUrl ?? widget.imageUrl ?? '';
+    // Price: try numeric field first; else parse from formatted string like ₹2,500/day
+    double pricePerDay = 0;
+    if (_listing?.price != null) {
+      // Listing.price may be double depending on model
+      try {
+        pricePerDay = (_listing!.price as num).toDouble();
+      } catch (_) {
+        // fallback to parse widget.price string below
+      }
     }
+    if (pricePerDay == 0 && (widget.price ?? '').isNotEmpty) {
+      final raw = widget.price!.replaceAll(',', '');
+      final match = RegExp(r"(\d+(?:\.\d+)?)").firstMatch(raw);
+      if (match != null) {
+        pricePerDay = double.tryParse(match.group(1)!) ?? 0;
+      }
+    }
+    CartRepository().addItem(
+      listingId: id,
+      title: title,
+      subtitle: subtitle,
+      imageUrl: imageUrl,
+      pricePerDay: pricePerDay,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Added to cart')),
+    );
   }
 
   Future<void> _loadListing() async {
     if (widget.listingId == null) return;
-    
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -307,6 +333,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   });
                 },
                 onOrderNow: _startBookingFlow,
+                onAddToCart: _addToCart,
               ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
@@ -469,10 +496,10 @@ class _HeroImageState extends State<_HeroImage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> displayImages = widget.images.isNotEmpty 
-        ? widget.images 
+    final List<String> displayImages = widget.images.isNotEmpty
+        ? widget.images
         : (widget.imageUrl.isNotEmpty ? [widget.imageUrl] : <String>[]);
-    
+
     if (displayImages.isEmpty) {
       return Container(
         height: 350,
@@ -602,6 +629,7 @@ class _DetailsCard extends StatelessWidget {
   final Function(int) onQuantityChanged;
   final VoidCallback onToggleDescription;
   final VoidCallback onOrderNow;
+  final VoidCallback onAddToCart;
 
   const _DetailsCard({
     required this.title,
@@ -621,6 +649,7 @@ class _DetailsCard extends StatelessWidget {
     required this.onQuantityChanged,
     required this.onToggleDescription,
     required this.onOrderNow,
+    required this.onAddToCart,
   });
 
   Color _getStatusColor(String status) {
@@ -648,173 +677,173 @@ class _DetailsCard extends StatelessWidget {
             topRight: Radius.circular(32),
           ),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title and Status Section
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: AppTheme.textDark,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                    if (status.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(status).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _getStatusColor(status).withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: _getStatusColor(status),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (category.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      category.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Rating Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _RatingRow(
-              rating: rating,
-              soldCount: soldCount,
-              quantity: quantity,
-              onQuantityChanged: onQuantityChanged,
-            ),
-          ),
-          const SizedBox(height: 20),
-          // Price Display
-          if (price.isNotEmpty)
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title and Status Section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Text(
-                    price,
-                    style: const TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 24),
-          // Details Section
-          if (city.isNotEmpty || date != null || capacity != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.lightGrey,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    if (city.isNotEmpty || pincode.isNotEmpty)
-                      _DetailRow(
-                        icon: Icons.location_on,
-                        label: 'Location',
-                        value: [city, pincode].where((e) => e.isNotEmpty).join(', '),
-                      ),
-                    if (date != null) ...[
-                      if (city.isNotEmpty || pincode.isNotEmpty) const SizedBox(height: 12),
-                      _DetailRow(
-                        icon: Icons.calendar_today,
-                        label: 'Date',
-                        value: '${_formatDate(date!)}${time != null ? ' at $time' : ''}',
-                      ),
-                    ],
-                    if (capacity != null) ...[
-                      if (city.isNotEmpty || pincode.isNotEmpty || date != null) const SizedBox(height: 12),
-                      _DetailRow(
-                        icon: Icons.people,
-                        label: 'Capacity',
-                        value: '$capacity guests',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          if (city.isNotEmpty || date != null || capacity != null) const SizedBox(height: 24),
-          // Description Section
-          if (description.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: AppTheme.textDark,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      if (status.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _getStatusColor(status).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: _getStatusColor(status),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (category.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        category.toUpperCase(),
+                        style: const TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _DescriptionSection(
-                    description: description,
-                    showFull: showFullDescription,
-                    onToggle: onToggleDescription,
-                  ),
+                  ],
                 ],
               ),
             ),
-          if (description.isNotEmpty) const SizedBox(height: 24),
-          // Action Buttons Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _ActionButtonsRow(onOrderNow: onOrderNow),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
+            // Rating Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _RatingRow(
+                rating: rating,
+                soldCount: soldCount,
+                quantity: quantity,
+                onQuantityChanged: onQuantityChanged,
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Price Display
+            if (price.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text(
+                      price,
+                      style: const TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 24),
+            // Details Section
+            if (city.isNotEmpty || date != null || capacity != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightGrey,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      if (city.isNotEmpty || pincode.isNotEmpty)
+                        _DetailRow(
+                          icon: Icons.location_on,
+                          label: 'Location',
+                          value: [city, pincode].where((e) => e.isNotEmpty).join(', '),
+                        ),
+                      if (date != null) ...[
+                        if (city.isNotEmpty || pincode.isNotEmpty) const SizedBox(height: 12),
+                        _DetailRow(
+                          icon: Icons.calendar_today,
+                          label: 'Date',
+                          value: '${_formatDate(date!)}${time != null ? ' at $time' : ''}',
+                        ),
+                      ],
+                      if (capacity != null) ...[
+                        if (city.isNotEmpty || pincode.isNotEmpty || date != null) const SizedBox(height: 12),
+                        _DetailRow(
+                          icon: Icons.people,
+                          label: 'Capacity',
+                          value: '$capacity guests',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            if (city.isNotEmpty || date != null || capacity != null) const SizedBox(height: 24),
+            // Description Section
+            if (description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _DescriptionSection(
+                      description: description,
+                      showFull: showFullDescription,
+                      onToggle: onToggleDescription,
+                    ),
+                  ],
+                ),
+              ),
+            if (description.isNotEmpty) const SizedBox(height: 24),
+            // Action Buttons Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _ActionButtonsRow(onOrderNow: onOrderNow, onAddToCart: onAddToCart),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -1033,8 +1062,9 @@ class _DescriptionSection extends StatelessWidget {
 // Action Buttons Row
 class _ActionButtonsRow extends StatelessWidget {
   final VoidCallback onOrderNow;
+  final VoidCallback onAddToCart;
 
-  const _ActionButtonsRow({required this.onOrderNow});
+  const _ActionButtonsRow({required this.onOrderNow, required this.onAddToCart});
 
   @override
   Widget build(BuildContext context) {
@@ -1043,7 +1073,7 @@ class _ActionButtonsRow extends StatelessWidget {
         // Add to Cart Button
         Expanded(
           child: OutlinedButton(
-            onPressed: () {},
+            onPressed: onAddToCart,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               side: BorderSide(color: AppTheme.textGrey.withOpacity(0.3)),
@@ -1235,138 +1265,156 @@ class _RecommendedCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                // Available Tag
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 110,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
-                    child: const Text(
-                      'Available',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  // Available Tag
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                SizedBox(
-                  height: 32,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        '$rating ($reviews)',
-                        style: const TextStyle(
-                          color: AppTheme.textGrey,
+                      child: const Text(
+                        'Available',
+                        style: TextStyle(
+                          color: AppTheme.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // Price
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  SizedBox(
+                    height: 32,
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '$rating ($reviews)',
+                          style: const TextStyle(
+                            color: AppTheme.textGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Price
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Parse numeric price from string like ₹2,500/day or ₹8,000/event
+                        double parsedPrice = 0;
+                        final raw = price.replaceAll(',', '');
+                        final match = RegExp(r"(\d+(?:\.\d+)?)").firstMatch(raw);
+                        if (match != null) {
+                          parsedPrice = double.tryParse(match.group(1)!) ?? 0;
+                        }
+                        CartRepository().addItem(
+                          listingId: title,
+                          title: title,
+                          subtitle: '',
+                          imageUrl: imageUrl,
+                          pricePerDay: parsedPrice,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }

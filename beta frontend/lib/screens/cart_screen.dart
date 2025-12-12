@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
+import '../features/cart/data/cart_repository.dart';
+import '../features/cart/domain/models/cart_item.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -11,75 +13,49 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   int _currentIndex = 2; // Cart tab
+  final CartRepository _cart = CartRepository();
 
-  final List<CartItem> _items = [
-    CartItem(
-      title: 'Premium BBQ Grill Set',
-      subtitle: 'BBQ Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1558036117-15d82a90b9b9?w=600',
-      pricePerDay: 2500,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Floral Stage Decor',
-      subtitle: 'Decor • Indoor',
-      imageUrl:
-          'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600',
-      pricePerDay: 3200,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Pro DJ Console',
-      subtitle: 'Audio • Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1551817958-20204c6a6d76?w=600',
-      pricePerDay: 1800,
-      days: 1,
-      quantity: 1,
-    ),
-  ];
-
-  double get subtotal {
-    return _items.fold<double>(
-      0,
-      (sum, item) => sum + (item.pricePerDay * item.days * item.quantity),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _cart.addListener(_onCartChanged);
   }
 
-  double get serviceFee => 250.0; // example fixed fee
-  double get taxes => (subtotal * 0.05); // 5% example tax
-  double get total => subtotal + serviceFee + taxes;
+  void _onCartChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _cart.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  double get subtotal => _cart.subtotal;
+  double get serviceFee => _cart.serviceFee;
+  double get taxes => _cart.taxes;
+  double get total => _cart.total;
 
   void _incrementQty(int index) {
-    setState(() {
-      _items[index] = _items[index].copyWith(quantity: _items[index].quantity + 1);
-    });
+    final item = _cart.items[index];
+    _cart.updateQuantity(item.listingId, item.days, item.quantity + 1);
   }
 
   void _decrementQty(int index) {
-    setState(() {
-      final q = _items[index].quantity;
-      if (q > 1) {
-        _items[index] = _items[index].copyWith(quantity: q - 1);
-      }
-    });
+    final item = _cart.items[index];
+    final q = item.quantity;
+    if (q > 1) {
+      _cart.updateQuantity(item.listingId, item.days, q - 1);
+    }
   }
 
   void _deleteItem(int index) {
-    setState(() {
-      _items.removeAt(index);
-    });
+    final item = _cart.items[index];
+    _cart.removeItem(item.listingId, item.days);
   }
 
   void _clearAll() {
-    setState(() {
-      _items.clear();
-    });
-    // ignore: avoid_print
-    print('Cart cleared');
+    _cart.clearCart();
   }
 
   @override
@@ -93,7 +69,7 @@ class _CartScreenState extends State<CartScreen> {
           child: Column(
             children: [
               _Header(
-                itemCount: _items.length,
+                itemCount: _cart.items.length,
                 onClearAll: _clearAll,
               ),
               const SizedBox(height: 16),
@@ -101,12 +77,12 @@ class _CartScreenState extends State<CartScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: ListView.builder(
-                  itemCount: _items.length,
+                  itemCount: _cart.items.length,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
                   itemBuilder: (context, index) {
-                    final item = _items[index];
+                    final item = _cart.items[index];
                     return Dismissible(
                       key: ValueKey('${item.title}-$index'),
                       direction: DismissDirection.endToStart,
@@ -132,13 +108,15 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ),
               // Optional: Coupon / Note row
-              const _CouponRow(),
+              _CouponRow(cart: _cart),
               // Summary
               _SummaryCard(
                 subtotal: subtotal,
                 serviceFee: serviceFee,
                 taxes: taxes,
                 total: total,
+                discount: _cart.discount,
+                promoCode: _cart.promoCode,
               ),
               const SizedBox(height: 100), // spacer before bottom button/nav
             ],
@@ -345,7 +323,7 @@ class _CartItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: AppTheme.white,
         borderRadius: BorderRadius.circular(16),
@@ -357,125 +335,133 @@ class _CartItemCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Thumbnail
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 70,
-              height: 70,
-              color: AppTheme.textGrey.withOpacity(0.2),
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.image, size: 28, color: AppTheme.textGrey),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Subtitle
-                Text(
-                  item.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textGrey,
-                    fontSize: 12.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Price and duration
-                Row(
-                  children: [
-                    Text(
-                      '₹${item.pricePerDay}/day',
-                      style: const TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '(x ${item.days} day${item.days == 1 ? '' : 's'})',
-                      style: const TextStyle(
-                        color: AppTheme.textGrey,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Quantity + Delete
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Delete
-              InkWell(
-                onTap: onDelete,
-                borderRadius: BorderRadius.circular(18),
-                child: const Padding(
-                  padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.delete_outline, color: AppTheme.textGrey, size: 20),
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaleFactor: MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.1),
+        ),
+        child: Row(
+          children: [
+            // Thumbnail
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 60,
+                height: 60,
+                color: AppTheme.textGrey.withOpacity(0.2),
+                child: Image.network(
+                  item.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.image, size: 28, color: AppTheme.textGrey),
                 ),
               ),
-              const SizedBox(height: 8),
-              // Qty selector
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F3F3),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _QtyIcon(
-                      icon: Icons.remove,
-                      onTap: onDecrement,
+            ),
+            const SizedBox(width: 12),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textDark,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      child: Text(
-                        '${item.quantity}',
+                  ),
+                  const SizedBox(height: 4),
+                  // Subtitle
+                  Text(
+                    item.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textGrey,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Price and duration
+                  Row(
+                    children: [
+                      Text(
+                        '₹${item.pricePerDay}/day',
                         style: const TextStyle(
-                          color: AppTheme.textDark,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryColor,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                    _QtyIcon(
-                      icon: Icons.add,
-                      onTap: onIncrement,
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '(x ${item.days} day${item.days == 1 ? '' : 's'})',
+                        style: const TextStyle(
+                          color: AppTheme.textGrey,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 8),
+            // Quantity + Delete
+            SizedBox(
+              height: 60,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Delete
+                  InkWell(
+                    onTap: onDelete,
+                    borderRadius: BorderRadius.circular(18),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2.0),
+                      child: Icon(Icons.delete_outline, color: AppTheme.textGrey, size: 20),
+                    ),
+                  ),
+                  // Qty selector
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F3F3),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _QtyIcon(
+                          icon: Icons.remove,
+                          onTap: onDecrement,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          child: Text(
+                            '${item.quantity}',
+                            style: const TextStyle(
+                              color: AppTheme.textDark,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        _QtyIcon(
+                          icon: Icons.add,
+                          onTap: onIncrement,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -493,10 +479,10 @@ class _QtyIcon extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.all(6.0),
+        padding: const EdgeInsets.all(5.0),
         child: Icon(
           icon,
-          size: 18,
+          size: 16,
           color: AppTheme.textDark,
         ),
       ),
@@ -509,12 +495,16 @@ class _SummaryCard extends StatelessWidget {
   final double serviceFee;
   final double taxes;
   final double total;
+  final double discount;
+  final String? promoCode;
 
   const _SummaryCard({
     required this.subtotal,
     required this.serviceFee,
     required this.taxes,
     required this.total,
+    this.discount = 0,
+    this.promoCode,
   });
 
   String _formatMoney(double value) {
@@ -574,6 +564,13 @@ class _SummaryCard extends StatelessWidget {
       child: Column(
         children: [
           _row('Subtotal', '₹${_formatMoney(subtotal)}'),
+          if ((discount) > 0) ...[
+            const SizedBox(height: 8),
+            _row(
+              promoCode != null ? 'Promo (${promoCode})' : 'Discount',
+              '-₹${_formatMoney(discount)}',
+            ),
+          ],
           const SizedBox(height: 8),
           _row('Service fee', '₹${_formatMoney(serviceFee)}'),
           const SizedBox(height: 8),
@@ -595,7 +592,9 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _CouponRow extends StatelessWidget {
-  const _CouponRow();
+  final CartRepository cart;
+
+  const _CouponRow({required this.cart});
 
   @override
   Widget build(BuildContext context) {
@@ -613,74 +612,113 @@ class _CouponRow extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.local_offer_outlined, color: AppTheme.textDark),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Apply promo code',
-              style: TextStyle(
-                color: AppTheme.textDark,
-                fontSize: 14.5,
-                fontWeight: FontWeight.w600,
+      child: InkWell(
+        onTap: () async {
+          final code = await showModalBottomSheet<String?>(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) {
+              final controller = TextEditingController(text: cart.promoCode ?? '');
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Apply promo code',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter code (e.g. SAVE10, FLAT200, FREESHIP)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        autofocus: true,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, controller.text.trim()),
+                            child: const Text('Apply'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+
+          if (code != null && code.isNotEmpty) {
+            final ok = cart.applyPromo(code);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(ok ? 'Promo applied: $code' : 'Invalid promo code'),
+                backgroundColor: ok ? Colors.green : Colors.red,
+              ),
+            );
+          }
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.local_offer_outlined, color: AppTheme.textDark),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    cart.promoCode == null ? 'Apply promo code' : 'Promo applied: ${cart.promoCode}',
+                    style: const TextStyle(
+                      color: AppTheme.textDark,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if ((cart.discount) > 0)
+                    Text(
+                      '-₹${cart.discount.toStringAsFixed(2)} discount',
+                      style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                    ),
+                ],
               ),
             ),
-          ),
-          InkWell(
-            onTap: () {
-              // ignore: avoid_print
-              print('Apply promo code tapped');
-            },
-            borderRadius: BorderRadius.circular(18),
-            child: const Padding(
-              padding: EdgeInsets.all(6.0),
-              child: Icon(Icons.chevron_right, color: AppTheme.textGrey),
-            ),
-          ),
-        ],
+            if (cart.promoCode != null)
+              TextButton(
+                onPressed: () => cart.removePromo(),
+                child: const Text('Remove'),
+              )
+            else
+              const Icon(Icons.chevron_right, color: AppTheme.textGrey),
+          ],
+        ),
       ),
     );
   }
 }
 
-class CartItem {
-  final String title;
-  final String subtitle;
-  final String imageUrl;
-  final int pricePerDay;
-  final int days;
-  final int quantity;
-
-  CartItem({
-    required this.title,
-    required this.subtitle,
-    required this.imageUrl,
-    required this.pricePerDay,
-    required this.days,
-    required this.quantity,
-  });
-
-  CartItem copyWith({
-    String? title,
-    String? subtitle,
-    String? imageUrl,
-    int? pricePerDay,
-    int? days,
-    int? quantity,
-  }) {
-    return CartItem(
-      title: title ?? this.title,
-      subtitle: subtitle ?? this.subtitle,
-      imageUrl: imageUrl ?? this.imageUrl,
-      pricePerDay: pricePerDay ?? this.pricePerDay,
-      days: days ?? this.days,
-      quantity: quantity ?? this.quantity,
-    );
-  }
-}
-
-// Content-only version for embedding inside MainNavigationScreen tab (no bottom nav / checkout button)
 class CartScreenContent extends StatefulWidget {
   const CartScreenContent({super.key});
 
@@ -689,59 +727,48 @@ class CartScreenContent extends StatefulWidget {
 }
 
 class _CartScreenContentState extends State<CartScreenContent> {
-  final List<CartItem> _items = [
-    CartItem(
-      title: 'Premium BBQ Grill Set',
-      subtitle: 'BBQ Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1558036117-15d82a90b9b9?w=600',
-      pricePerDay: 2500,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Floral Stage Decor',
-      subtitle: 'Decor • Indoor',
-      imageUrl:
-          'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600',
-      pricePerDay: 3200,
-      days: 1,
-      quantity: 1,
-    ),
-  ];
+  final CartRepository _cart = CartRepository();
 
-  double get subtotal => _items.fold<double>(
-        0,
-        (sum, item) => sum + (item.pricePerDay * item.days * item.quantity),
-      );
-  double get serviceFee => 250.0;
-  double get taxes => subtotal * 0.05;
-  double get total => subtotal + serviceFee + taxes;
+  @override
+  void initState() {
+    super.initState();
+    _cart.addListener(_onCartChanged);
+  }
+
+  void _onCartChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _cart.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  double get subtotal => _cart.subtotal;
+  double get serviceFee => _cart.serviceFee;
+  double get taxes => _cart.taxes;
+  double get total => _cart.total;
 
   void _incrementQty(int index) {
-    setState(() {
-      _items[index] = _items[index].copyWith(quantity: _items[index].quantity + 1);
-    });
+    final item = _cart.items[index];
+    _cart.updateQuantity(item.listingId, item.days, item.quantity + 1);
   }
 
   void _decrementQty(int index) {
-    setState(() {
-      if (_items[index].quantity > 1) {
-        _items[index] = _items[index].copyWith(quantity: _items[index].quantity - 1);
-      }
-    });
+    final item = _cart.items[index];
+    if (item.quantity > 1) {
+      _cart.updateQuantity(item.listingId, item.days, item.quantity - 1);
+    }
   }
 
   void _deleteItem(int index) {
-    setState(() {
-      _items.removeAt(index);
-    });
+    final item = _cart.items[index];
+    _cart.removeItem(item.listingId, item.days);
   }
 
   void _clearAll() {
-    setState(() {
-      _items.clear();
-    });
+    _cart.clearCart();
   }
 
   @override
@@ -750,15 +777,15 @@ class _CartScreenContentState extends State<CartScreenContent> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            _Header(itemCount: _items.length, onClearAll: _clearAll),
+            _Header(itemCount: _cart.items.length, onClearAll: _clearAll),
             const SizedBox(height: 16),
             ListView.builder(
-              itemCount: _items.length,
+              itemCount: _cart.items.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               itemBuilder: (context, index) {
-                final item = _items[index];
+                final item = _cart.items[index];
                 return _CartItemCard(
                   item: item,
                   onDecrement: () => _decrementQty(index),
@@ -767,12 +794,14 @@ class _CartScreenContentState extends State<CartScreenContent> {
                 );
               },
             ),
-            const _CouponRow(),
+            _CouponRow(cart: _cart),
             _SummaryCard(
               subtotal: subtotal,
               serviceFee: serviceFee,
               taxes: taxes,
               total: total,
+              discount: _cart.discount,
+              promoCode: _cart.promoCode,
             ),
             const SizedBox(height: 12),
             // Checkout button within tab content
