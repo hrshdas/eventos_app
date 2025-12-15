@@ -224,9 +224,11 @@ class AuthRepository {
   /// 3) Exchanges idToken with backend at /auth/google for JWTs and User
   Future<User> signInWithGoogle() async {
     try {
-      final googleSignIn = GoogleSignIn(scopes: [
-        'email',
-      ]);
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email'],
+        serverClientId:
+            '215980053014-guc0aefco4ok5huggo04i6uqsju3cgnd.apps.googleusercontent.com',
+      );
 
       // Ensure a clean state
       try {

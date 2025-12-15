@@ -8,6 +8,8 @@ import '../core/api/app_api_exception.dart';
 import 'gallery_screen.dart';
 import '../features/bookings/data/booking_repository.dart';
 import 'booking_success_screen.dart';
+import 'cart_screen.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class PackageDetailsScreen extends StatefulWidget {
   final String? listingId; // If provided, fetch full listing details
@@ -307,6 +309,22 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   });
                 },
                 onOrderNow: _startBookingFlow,
+                onAddToCart: () {
+                  final cartRepo = CartRepository();
+                  final listingId = _listing?.id ?? 'pkg_${_displayTitle.hashCode}';
+                  cartRepo.addItem(
+                    listingId: listingId,
+                    title: _displayTitle,
+                    subtitle: _displayCategory,
+                    imageUrl: _displayImageUrl,
+                    pricePerDay: double.tryParse(_displayPrice.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
+                    days: 1,
+                    quantity: _quantity,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Item added to cart!'), duration: Duration(seconds: 2)),
+                  );
+                },
               ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
@@ -602,6 +620,7 @@ class _DetailsCard extends StatelessWidget {
   final Function(int) onQuantityChanged;
   final VoidCallback onToggleDescription;
   final VoidCallback onOrderNow;
+  final VoidCallback onAddToCart;
 
   const _DetailsCard({
     required this.title,
@@ -621,6 +640,7 @@ class _DetailsCard extends StatelessWidget {
     required this.onQuantityChanged,
     required this.onToggleDescription,
     required this.onOrderNow,
+    required this.onAddToCart,
   });
 
   Color _getStatusColor(String status) {
@@ -810,7 +830,10 @@ class _DetailsCard extends StatelessWidget {
           // Action Buttons Row
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _ActionButtonsRow(onOrderNow: onOrderNow),
+            child: _ActionButtonsRow(
+              onOrderNow: onOrderNow,
+              onAddToCart: onAddToCart,
+            ),
           ),
           const SizedBox(height: 20),
         ],
@@ -1033,8 +1056,12 @@ class _DescriptionSection extends StatelessWidget {
 // Action Buttons Row
 class _ActionButtonsRow extends StatelessWidget {
   final VoidCallback onOrderNow;
+  final VoidCallback onAddToCart;
 
-  const _ActionButtonsRow({required this.onOrderNow});
+  const _ActionButtonsRow({
+    required this.onOrderNow,
+    required this.onAddToCart,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1043,7 +1070,7 @@ class _ActionButtonsRow extends StatelessWidget {
         // Add to Cart Button
         Expanded(
           child: OutlinedButton(
-            onPressed: () {},
+            onPressed: onAddToCart,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               side: BorderSide(color: AppTheme.textGrey.withOpacity(0.3)),
@@ -1341,7 +1368,21 @@ class _RecommendedCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      final cartRepo = CartRepository();
+                      cartRepo.addItem(
+                        listingId: 'rec_${title.hashCode}',
+                        title: title,
+                        subtitle: 'Recommended',
+                        imageUrl: imageUrl,
+                        pricePerDay: double.tryParse(price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
+                        days: 1,
+                        quantity: 1,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$title added to cart!'), duration: const Duration(seconds: 2)),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.darkNavy,
                       padding: const EdgeInsets.symmetric(vertical: 6),

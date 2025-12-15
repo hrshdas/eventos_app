@@ -6,6 +6,8 @@ import '../widgets/shared_header_card.dart';
 import '../features/listings/data/listings_repository.dart';
 import '../features/listings/domain/models/listing.dart';
 import '../core/api/app_api_exception.dart';
+import 'cart_screen.dart';
+import '../features/cart/data/cart_repository.dart';
 
 class RentalsScreen extends StatefulWidget {
   const RentalsScreen({super.key});
@@ -17,6 +19,23 @@ class RentalsScreen extends StatefulWidget {
 class _RentalsScreenState extends State<RentalsScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
+  final CartRepository _cartRepo = CartRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +55,13 @@ class _RentalsScreenState extends State<RentalsScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
+                showCartIcon: true,
+                cartItemCount: _cartRepo.itemCount,
+                onCartTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               _FilterTabsRow(
@@ -449,7 +475,21 @@ class _RentalCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      final cartRepo = CartRepository();
+                      cartRepo.addItem(
+                        listingId: listingId ?? 'rental_${title.hashCode}',
+                        title: title,
+                        subtitle: 'Rental',
+                        imageUrl: imageUrl,
+                        pricePerDay: double.tryParse(price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
+                        days: 1,
+                        quantity: 1,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$title added to cart!'), duration: const Duration(seconds: 2)),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.darkNavy,
                       padding: const EdgeInsets.symmetric(vertical: 6),

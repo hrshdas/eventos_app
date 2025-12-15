@@ -3,6 +3,11 @@ import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
 import '../widgets/shared_header_card.dart';
+import 'cart_screen.dart';
+import '../features/cart/data/cart_repository.dart';
+import '../features/listings/data/listings_repository.dart';
+import '../features/listings/domain/models/listing.dart';
+import '../core/api/app_api_exception.dart';
 
 class TalentStaffScreen extends StatefulWidget {
   const TalentStaffScreen({super.key});
@@ -14,6 +19,23 @@ class TalentStaffScreen extends StatefulWidget {
 class _TalentStaffScreenState extends State<TalentStaffScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
+  final CartRepository _cartRepo = CartRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +55,13 @@ class _TalentStaffScreenState extends State<TalentStaffScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
+                showCartIcon: true,
+                cartItemCount: _cartRepo.itemCount,
+                onCartTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               _FilterTabsRow(
@@ -45,8 +74,6 @@ class _TalentStaffScreenState extends State<TalentStaffScreen> {
               ),
               const SizedBox(height: 16),
               const _TalentStaffGrid(),
-              const SizedBox(height: 24),
-              const _RecommendedSection(),
               const SizedBox(height: 80), // Space for bottom nav
             ],
           ),
@@ -166,42 +193,97 @@ class _FilterTabsRow extends StatelessWidget {
   }
 }
 
-// Talent Staff Grid Section
-class _TalentStaffGrid extends StatelessWidget {
+// Talent Staff Grid Section - Fetches from backend
+class _TalentStaffGrid extends StatefulWidget {
   const _TalentStaffGrid();
 
   @override
+  State<_TalentStaffGrid> createState() => _TalentStaffGridState();
+}
+
+class _TalentStaffGridState extends State<_TalentStaffGrid> {
+  final ListingsRepository _repository = ListingsRepository();
+  List<Listing> _listings = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTalent();
+  }
+
+  Future<void> _loadTalent() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final listings = await _repository.getListings(
+        filters: {'category': 'talent'},
+      );
+      if (mounted) {
+        setState(() {
+          _listings = listings;
+          _isLoading = false;
+        });
+      }
+    } on AppApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load talent: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final talentItems = [
-      {
-        'title': 'Professional DJ',
-        'rating': 4.8,
-        'reviews': 256,
-        'price': '₹8,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400',
-      },
-      {
-        'title': 'Event Photographer',
-        'rating': 4.9,
-        'reviews': 312,
-        'price': '₹5,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
-      },
-      {
-        'title': 'Wedding Planner',
-        'rating': 4.7,
-        'reviews': 145,
-        'price': '₹12,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400',
-      },
-      {
-        'title': 'Catering Staff',
-        'rating': 4.6,
-        'reviews': 189,
-        'price': '₹6,500/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-    ];
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(60.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppTheme.textGrey),
+            const SizedBox(height: 16),
+            Text(_errorMessage!, style: const TextStyle(color: AppTheme.textGrey)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadTalent,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_listings.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(60.0),
+        child: Center(
+          child: Text(
+            'No talent available',
+            style: TextStyle(color: AppTheme.textGrey, fontSize: 16),
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -214,14 +296,11 @@ class _TalentStaffGrid extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         ),
-        itemCount: talentItems.length,
+        itemCount: _listings.length,
         itemBuilder: (context, index) {
+          final listing = _listings[index];
           return _TalentStaffCard(
-            title: talentItems[index]['title'] as String,
-            rating: talentItems[index]['rating'] as double,
-            reviews: talentItems[index]['reviews'] as int,
-            price: talentItems[index]['price'] as String,
-            imageUrl: talentItems[index]['imageUrl'] as String,
+            listing: listing,
           );
         },
       ),
@@ -231,18 +310,10 @@ class _TalentStaffGrid extends StatelessWidget {
 
 // Talent Staff Card Widget
 class _TalentStaffCard extends StatelessWidget {
-  final String title;
-  final double rating;
-  final int reviews;
-  final String price;
-  final String imageUrl;
+  final Listing listing;
 
   const _TalentStaffCard({
-    required this.title,
-    required this.rating,
-    required this.reviews,
-    required this.price,
-    required this.imageUrl,
+    required this.listing,
   });
 
   @override
@@ -253,11 +324,11 @@ class _TalentStaffCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
-              title: title,
-              imageUrl: imageUrl,
-              rating: rating,
-              soldCount: reviews * 10, // Convert reviews to sold count estimate
-              price: price,
+              title: listing.title,
+              imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
+              rating: 4.5,
+              soldCount: 100,
+              price: '₹${listing.price?.toInt() ?? 0}/event',
             ),
           ),
         );
@@ -288,7 +359,7 @@ class _TalentStaffCard extends StatelessWidget {
                   width: double.infinity,
                   color: AppTheme.textGrey.withOpacity(0.2),
                   child: Image.network(
-                    imageUrl,
+                    (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
@@ -332,7 +403,7 @@ class _TalentStaffCard extends StatelessWidget {
                 SizedBox(
                   height: 32,
                   child: Text(
-                    title,
+                    listing.title,
                     style: const TextStyle(
                       color: AppTheme.textDark,
                       fontSize: 12,
@@ -355,7 +426,7 @@ class _TalentStaffCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Flexible(
                       child: Text(
-                        '$rating ($reviews)',
+                        '4.5 (100 reviews)',
                         style: const TextStyle(
                           color: AppTheme.textGrey,
                           fontSize: 10,
@@ -369,7 +440,7 @@ class _TalentStaffCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 // Price
                 Text(
-                  price,
+                  '₹${listing.price?.toInt() ?? 0}/event',
                   style: const TextStyle(
                     color: AppTheme.primaryColor,
                     fontSize: 12,
@@ -381,7 +452,21 @@ class _TalentStaffCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      final cartRepo = CartRepository();
+                      cartRepo.addItem(
+                        listingId: listing.id,
+                        title: listing.title,
+                        subtitle: 'Talent & Staff',
+                        imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
+                        pricePerDay: listing.price ?? 0.0,
+                        days: 1,
+                        quantity: 1,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${listing.title} added to cart!'), duration: const Duration(seconds: 2)),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.darkNavy,
                       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -411,71 +496,4 @@ class _TalentStaffCard extends StatelessWidget {
   }
 }
 
-// Recommended Section
-class _RecommendedSection extends StatelessWidget {
-  const _RecommendedSection();
 
-  @override
-  Widget build(BuildContext context) {
-    final recommendedItems = [
-      {
-        'title': 'Professional DJ',
-        'rating': 4.8,
-        'reviews': 256,
-        'price': '₹8,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400',
-      },
-      {
-        'title': 'Event Photographer',
-        'rating': 4.9,
-        'reviews': 312,
-        'price': '₹5,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: const Text(
-            'Recommended for your event',
-            style: TextStyle(
-              color: AppTheme.textDark,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _TalentStaffCard(
-                  title: recommendedItems[0]['title'] as String,
-                  rating: recommendedItems[0]['rating'] as double,
-                  reviews: recommendedItems[0]['reviews'] as int,
-                  price: recommendedItems[0]['price'] as String,
-                  imageUrl: recommendedItems[0]['imageUrl'] as String,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _TalentStaffCard(
-                  title: recommendedItems[1]['title'] as String,
-                  rating: recommendedItems[1]['rating'] as double,
-                  reviews: recommendedItems[1]['reviews'] as int,
-                  price: recommendedItems[1]['price'] as String,
-                  imageUrl: recommendedItems[1]['imageUrl'] as String,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

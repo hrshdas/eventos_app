@@ -5,12 +5,14 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
+import '../features/listings/domain/models/listing.dart';
 import '../widgets/eventos_logo_svg.dart';
 import '../widgets/listings_list.dart';
 import '../core/location/location_provider.dart';
 import '../widgets/shared_header_card.dart';
 import 'cart_screen.dart';
 import '../features/cart/data/cart_repository.dart';
+import 'packages_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +23,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final CartRepository _cartRepo = CartRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    setState(() {
+      // Rebuild when cart changes
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   SharedHeaderCard(
                     showCartIcon: true,
-                    cartItemCount: CartRepository().itemCount,
+                    cartItemCount: _cartRepo.itemCount,
                     onCartTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const CartScreen()),
@@ -99,8 +120,33 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // Content-only version for use in MainNavigationScreen
-class HomeScreenContent extends StatelessWidget {
+class HomeScreenContent extends StatefulWidget {
   const HomeScreenContent({super.key});
+
+  @override
+  State<HomeScreenContent> createState() => _HomeScreenContentState();
+}
+
+class _HomeScreenContentState extends State<HomeScreenContent> {
+  final CartRepository _cartRepo = CartRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    setState(() {
+      // Rebuild when cart changes
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +159,7 @@ class HomeScreenContent extends StatelessWidget {
                 const SizedBox(height: 8),
                 SharedHeaderCard(
                   showCartIcon: true,
-                  cartItemCount: CartRepository().itemCount,
+                  cartItemCount: _cartRepo.itemCount,
                   onCartTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const CartScreen()),
@@ -171,11 +217,18 @@ class PopularPackagesSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'VIEW ALL',
+                        style: AppTheme.viewAllText,
+                      ),
                     ),
                   ),
                 ),
@@ -185,11 +238,29 @@ class PopularPackagesSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         // Use ListingsList widget with category filter for packages
-        const ListingsList(
-          filters: {'category': 'package'},
+        ListingsList(
+          filters: const {'category': 'package'},
           horizontal: true,
           height: 260,
           itemLimit: 10,
+          onAddToCart: (listing) {
+            final cartRepo = CartRepository();
+            cartRepo.addItem(
+              listingId: listing.id,
+              title: listing.title,
+              subtitle: listing.description ?? listing.category,
+              imageUrl: listing.imageUrl ?? '',
+              pricePerDay: listing.price ?? 0.0,
+              days: 1,
+              quantity: 1,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${listing.title} added to cart!'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -330,8 +401,22 @@ class _PopularPackageCard extends StatelessWidget {
 }
 
 // Shop by Event Section
-class ShopByEventSection extends StatelessWidget {
+class ShopByEventSection extends StatefulWidget {
   const ShopByEventSection({super.key});
+
+  @override
+  State<ShopByEventSection> createState() => _ShopByEventSectionState();
+}
+
+class _ShopByEventSectionState extends State<ShopByEventSection> {
+  int _selectedCategoryIndex = 0;
+  final List<String> _categories = ['Event!', 'Party', 'Birthday', 'Wedding'];
+  final List<IconData> _categoryIcons = [
+    Icons.location_on,
+    Icons.bolt,
+    Icons.edit,
+    Icons.celebration,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -364,11 +449,18 @@ class ShopByEventSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'VIEW ALL',
+                        style: AppTheme.viewAllText,
+                      ),
                     ),
                   ),
                 ),
@@ -383,31 +475,24 @@ class ShopByEventSection extends StatelessWidget {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: [
-                _CategoryChip(
-                  label: 'Event!',
-                  icon: Icons.location_on,
-                  isActive: true,
+              children: List.generate(
+                _categories.length,
+                (index) => Padding(
+                  padding: EdgeInsets.only(right: index < _categories.length - 1 ? 8.0 : 0),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedCategoryIndex = index;
+                      });
+                    },
+                    child: _CategoryChip(
+                      label: _categories[index],
+                      icon: _categoryIcons[index],
+                      isActive: _selectedCategoryIndex == index,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Party',
-                  icon: Icons.bolt,
-                  isActive: false,
-                ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Birthday',
-                  icon: Icons.edit,
-                  isActive: false,
-                ),
-                const SizedBox(width: 8),
-                _CategoryChip(
-                  label: 'Wedding',
-                  icon: Icons.celebration,
-                  isActive: false,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -618,11 +703,18 @@ class RecommendedSection extends StatelessWidget {
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'VIEW ALL',
+                        style: AppTheme.viewAllText,
+                      ),
                     ),
                   ),
                 ),
@@ -797,7 +889,21 @@ class _RecommendedCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      final cartRepo = CartRepository();
+                      cartRepo.addItem(
+                        listingId: 'home_${title.hashCode}',
+                        title: title,
+                        subtitle: 'Recommended',
+                        imageUrl: imageUrl,
+                        pricePerDay: double.tryParse(price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
+                        days: 1,
+                        quantity: 1,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$title added to cart!'), duration: const Duration(seconds: 2)),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.darkGrey,
                       padding: const EdgeInsets.symmetric(vertical: 10),

@@ -343,7 +343,7 @@ class _OwnerBookingsScreenState extends State<OwnerBookingsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(b.listingTitle ?? 'Listing ${b.listingId}',
+                                  Text(b.listingTitle ?? 'Untitled Listing',
                                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                                   const SizedBox(height: 4),
                                   Text('Status: ${b.status.toUpperCase()}',
@@ -412,7 +412,7 @@ class _BookingTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              booking.listingTitle ?? 'Listing ${booking.listingId}',
+              booking.listingTitle ?? 'Untitled Listing',
               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             const SizedBox(height: 4),

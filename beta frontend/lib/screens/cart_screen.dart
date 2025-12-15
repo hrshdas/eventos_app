@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
+import '../features/cart/data/cart_repository.dart';
+import '../features/cart/domain/models/cart_item.dart' as cart_model;
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -11,73 +13,42 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   int _currentIndex = 2; // Cart tab
+  final CartRepository _cartRepo = CartRepository();
 
-  final List<CartItem> _items = [
-    CartItem(
-      title: 'Premium BBQ Grill Set',
-      subtitle: 'BBQ Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1558036117-15d82a90b9b9?w=600',
-      pricePerDay: 2500,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Floral Stage Decor',
-      subtitle: 'Decor • Indoor',
-      imageUrl:
-          'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600',
-      pricePerDay: 3200,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Pro DJ Console',
-      subtitle: 'Audio • Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1551817958-20204c6a6d76?w=600',
-      pricePerDay: 1800,
-      days: 1,
-      quantity: 1,
-    ),
-  ];
-
-  double get subtotal {
-    return _items.fold<double>(
-      0,
-      (sum, item) => sum + (item.pricePerDay * item.days * item.quantity),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
   }
 
-  double get serviceFee => 250.0; // example fixed fee
-  double get taxes => (subtotal * 0.05); // 5% example tax
-  double get total => subtotal + serviceFee + taxes;
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
 
-  void _incrementQty(int index) {
+  void _onCartChanged() {
     setState(() {
-      _items[index] = _items[index].copyWith(quantity: _items[index].quantity + 1);
+      // Rebuild when cart changes
     });
   }
 
-  void _decrementQty(int index) {
-    setState(() {
-      final q = _items[index].quantity;
-      if (q > 1) {
-        _items[index] = _items[index].copyWith(quantity: q - 1);
-      }
-    });
+  void _incrementQty(cart_model.CartItem item) {
+    _cartRepo.updateQuantity(item.listingId, item.days, item.quantity + 1);
   }
 
-  void _deleteItem(int index) {
-    setState(() {
-      _items.removeAt(index);
-    });
+  void _decrementQty(cart_model.CartItem item) {
+    if (item.quantity > 1) {
+      _cartRepo.updateQuantity(item.listingId, item.days, item.quantity - 1);
+    }
+  }
+
+  void _deleteItem(cart_model.CartItem item) {
+    _cartRepo.removeItem(item.listingId, item.days);
   }
 
   void _clearAll() {
-    setState(() {
-      _items.clear();
-    });
+    _cartRepo.clearCart();
     // ignore: avoid_print
     print('Cart cleared');
   }
@@ -85,6 +56,7 @@ class _CartScreenState extends State<CartScreen> {
   @override
   Widget build(BuildContext context) {
     final bg = AppTheme.lightGrey;
+    final items = _cartRepo.items;
 
     return Scaffold(
       backgroundColor: bg,
@@ -93,7 +65,7 @@ class _CartScreenState extends State<CartScreen> {
           child: Column(
             children: [
               _Header(
-                itemCount: _items.length,
+                itemCount: items.length,
                 onClearAll: _clearAll,
               ),
               const SizedBox(height: 16),
@@ -101,16 +73,16 @@ class _CartScreenState extends State<CartScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: ListView.builder(
-                  itemCount: _items.length,
+                  itemCount: items.length,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: EdgeInsets.zero,
                   itemBuilder: (context, index) {
-                    final item = _items[index];
+                    final item = items[index];
                     return Dismissible(
-                      key: ValueKey('${item.title}-$index'),
+                      key: ValueKey('${item.listingId}-${item.days}-$index'),
                       direction: DismissDirection.endToStart,
-                      onDismissed: (_) => _deleteItem(index),
+                      onDismissed: (_) => _deleteItem(item),
                       background: Container(
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
@@ -123,9 +95,9 @@ class _CartScreenState extends State<CartScreen> {
                       ),
                       child: _CartItemCard(
                         item: item,
-                        onDecrement: () => _decrementQty(index),
-                        onIncrement: () => _incrementQty(index),
-                        onDelete: () => _deleteItem(index),
+                        onDecrement: () => _decrementQty(item),
+                        onIncrement: () => _incrementQty(item),
+                        onDelete: () => _deleteItem(item),
                       ),
                     );
                   },
@@ -135,10 +107,10 @@ class _CartScreenState extends State<CartScreen> {
               const _CouponRow(),
               // Summary
               _SummaryCard(
-                subtotal: subtotal,
-                serviceFee: serviceFee,
-                taxes: taxes,
-                total: total,
+                subtotal: _cartRepo.subtotal,
+                serviceFee: _cartRepo.serviceFee,
+                taxes: _cartRepo.taxes,
+                total: _cartRepo.total,
               ),
               const SizedBox(height: 100), // spacer before bottom button/nav
             ],
@@ -160,10 +132,10 @@ class _CartScreenState extends State<CartScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     // ignore: avoid_print
-                    print('Proceed to Checkout: Pay ₹${_formatMoney(total)}');
+                    print('Proceed to Checkout: Pay ₹${_formatMoney(_cartRepo.total)}');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Proceeding to checkout — ₹${_formatMoney(total)}'),
+                        content: Text('Proceeding to checkout — ₹${_formatMoney(_cartRepo.total)}'),
                       ),
                     );
                   },
@@ -175,7 +147,7 @@ class _CartScreenState extends State<CartScreen> {
                     elevation: 2,
                   ),
                   child: Text(
-                    'Proceed to Checkout — ₹${_formatMoney(total)}',
+                    'Proceed to Checkout — ₹${_formatMoney(_cartRepo.total)}',
                     style: const TextStyle(
                       color: AppTheme.white,
                       fontSize: 15.5,
@@ -329,7 +301,7 @@ class _Header extends StatelessWidget {
 }
 
 class _CartItemCard extends StatelessWidget {
-  final CartItem item;
+  final cart_model.CartItem item;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
@@ -644,42 +616,6 @@ class _CouponRow extends StatelessWidget {
   }
 }
 
-class CartItem {
-  final String title;
-  final String subtitle;
-  final String imageUrl;
-  final int pricePerDay;
-  final int days;
-  final int quantity;
-
-  CartItem({
-    required this.title,
-    required this.subtitle,
-    required this.imageUrl,
-    required this.pricePerDay,
-    required this.days,
-    required this.quantity,
-  });
-
-  CartItem copyWith({
-    String? title,
-    String? subtitle,
-    String? imageUrl,
-    int? pricePerDay,
-    int? days,
-    int? quantity,
-  }) {
-    return CartItem(
-      title: title ?? this.title,
-      subtitle: subtitle ?? this.subtitle,
-      imageUrl: imageUrl ?? this.imageUrl,
-      pricePerDay: pricePerDay ?? this.pricePerDay,
-      days: days ?? this.days,
-      quantity: quantity ?? this.quantity,
-    );
-  }
-}
-
 // Content-only version for embedding inside MainNavigationScreen tab (no bottom nav / checkout button)
 class CartScreenContent extends StatefulWidget {
   const CartScreenContent({super.key});
@@ -689,90 +625,75 @@ class CartScreenContent extends StatefulWidget {
 }
 
 class _CartScreenContentState extends State<CartScreenContent> {
-  final List<CartItem> _items = [
-    CartItem(
-      title: 'Premium BBQ Grill Set',
-      subtitle: 'BBQ Equipment',
-      imageUrl:
-          'https://images.unsplash.com/photo-1558036117-15d82a90b9b9?w=600',
-      pricePerDay: 2500,
-      days: 1,
-      quantity: 1,
-    ),
-    CartItem(
-      title: 'Floral Stage Decor',
-      subtitle: 'Decor • Indoor',
-      imageUrl:
-          'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600',
-      pricePerDay: 3200,
-      days: 1,
-      quantity: 1,
-    ),
-  ];
+  final CartRepository _cartRepo = CartRepository();
 
-  double get subtotal => _items.fold<double>(
-        0,
-        (sum, item) => sum + (item.pricePerDay * item.days * item.quantity),
-      );
-  double get serviceFee => 250.0;
-  double get taxes => subtotal * 0.05;
-  double get total => subtotal + serviceFee + taxes;
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
 
-  void _incrementQty(int index) {
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
     setState(() {
-      _items[index] = _items[index].copyWith(quantity: _items[index].quantity + 1);
+      // Rebuild when cart changes
     });
   }
 
-  void _decrementQty(int index) {
-    setState(() {
-      if (_items[index].quantity > 1) {
-        _items[index] = _items[index].copyWith(quantity: _items[index].quantity - 1);
-      }
-    });
+  void _incrementQty(cart_model.CartItem item) {
+    _cartRepo.updateQuantity(item.listingId, item.days, item.quantity + 1);
   }
 
-  void _deleteItem(int index) {
-    setState(() {
-      _items.removeAt(index);
-    });
+  void _decrementQty(cart_model.CartItem item) {
+    if (item.quantity > 1) {
+      _cartRepo.updateQuantity(item.listingId, item.days, item.quantity - 1);
+    }
+  }
+
+  void _deleteItem(cart_model.CartItem item) {
+    _cartRepo.removeItem(item.listingId, item.days);
   }
 
   void _clearAll() {
-    setState(() {
-      _items.clear();
-    });
+    _cartRepo.clearCart();
   }
 
   @override
   Widget build(BuildContext context) {
+    final items = _cartRepo.items;
+    
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
           children: [
-            _Header(itemCount: _items.length, onClearAll: _clearAll),
+            _Header(itemCount: items.length, onClearAll: _clearAll),
             const SizedBox(height: 16),
             ListView.builder(
-              itemCount: _items.length,
+              itemCount: items.length,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               itemBuilder: (context, index) {
-                final item = _items[index];
+                final item = items[index];
                 return _CartItemCard(
                   item: item,
-                  onDecrement: () => _decrementQty(index),
-                  onIncrement: () => _incrementQty(index),
-                  onDelete: () => _deleteItem(index),
+                  onDecrement: () => _decrementQty(item),
+                  onIncrement: () => _incrementQty(item),
+                  onDelete: () => _deleteItem(item),
                 );
               },
             ),
             const _CouponRow(),
             _SummaryCard(
-              subtotal: subtotal,
-              serviceFee: serviceFee,
-              taxes: taxes,
-              total: total,
+              subtotal: _cartRepo.subtotal,
+              serviceFee: _cartRepo.serviceFee,
+              taxes: _cartRepo.taxes,
+              total: _cartRepo.total,
             ),
             const SizedBox(height: 12),
             // Checkout button within tab content
@@ -786,10 +707,10 @@ class _CartScreenContentState extends State<CartScreenContent> {
                   child: ElevatedButton(
                     onPressed: () {
                       // ignore: avoid_print
-                      print('Proceed to Checkout: Pay ₹${_formatMoney(total)}');
+                      print('Proceed to Checkout: Pay ₹${_formatMoney(_cartRepo.total)}');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Proceeding to checkout — ₹${_formatMoney(total)}'),
+                          content: Text('Proceeding to checkout — ₹${_formatMoney(_cartRepo.total)}'),
                         ),
                       );
                     },
@@ -801,7 +722,7 @@ class _CartScreenContentState extends State<CartScreenContent> {
                       elevation: 2,
                     ),
                     child: Text(
-                      'Proceed to Checkout — ₹${_formatMoney(total)}',
+                      'Proceed to Checkout — ₹${_formatMoney(_cartRepo.total)}',
                       style: const TextStyle(
                         color: AppTheme.white,
                         fontSize: 15.5,

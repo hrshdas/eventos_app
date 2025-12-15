@@ -3,6 +3,12 @@ import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
 import '../widgets/shared_header_card.dart';
+import 'cart_screen.dart';
+import '../features/cart/data/cart_repository.dart';
+import '../features/listings/data/listings_repository.dart';
+import '../features/listings/domain/models/listing.dart';
+import '../core/api/app_api_exception.dart';
+
 
 class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
@@ -14,6 +20,23 @@ class PackagesScreen extends StatefulWidget {
 class _PackagesScreenState extends State<PackagesScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
+  final CartRepository _cartRepo = CartRepository();
+
+  @override
+  void initState() {
+    super.initState();
+    _cartRepo.addListener(_onCartChanged);
+  }
+
+  @override
+  void dispose() {
+    _cartRepo.removeListener(_onCartChanged);
+    super.dispose();
+  }
+
+  void _onCartChanged() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +56,13 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
+                showCartIcon: true,
+                cartItemCount: _cartRepo.itemCount,
+                onCartTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
+                },
               ),
               const SizedBox(height: 16),
               _FilterTabsRow(
@@ -45,8 +75,6 @@ class _PackagesScreenState extends State<PackagesScreen> {
               ),
               const SizedBox(height: 16),
               const _PackagesGrid(),
-              const SizedBox(height: 24),
-              const _RecommendedSection(),
               const SizedBox(height: 80), // Space for bottom nav
             ],
           ),
@@ -167,42 +195,97 @@ class _FilterTabsRow extends StatelessWidget {
   }
 }
 
-// Packages Grid Section
-class _PackagesGrid extends StatelessWidget {
+// Packages Grid Section - Fetches from backend
+class _PackagesGrid extends StatefulWidget {
   const _PackagesGrid();
 
   @override
+  State<_PackagesGrid> createState() => _PackagesGridState();
+}
+
+class _PackagesGridState extends State<_PackagesGrid> {
+  final ListingsRepository _repository = ListingsRepository();
+  List<Listing> _listings = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackages();
+  }
+
+  Future<void> _loadPackages() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final listings = await _repository.getListings(
+        filters: {'category': 'package'},
+      );
+      if (mounted) {
+        setState(() {
+          _listings = listings;
+          _isLoading = false;
+        });
+      }
+    } on AppApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load packages: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final packageItems = [
-      {
-        'title': 'Complete Wedding Package',
-        'rating': 4.9,
-        'reviews': 456,
-        'price': '₹50,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400',
-      },
-      {
-        'title': 'Corporate Event Package',
-        'rating': 4.8,
-        'reviews': 312,
-        'price': '₹35,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
-      },
-      {
-        'title': 'Birthday Party Package',
-        'rating': 4.7,
-        'reviews': 289,
-        'price': '₹25,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-      },
-      {
-        'title': 'Anniversary Celebration',
-        'rating': 4.6,
-        'reviews': 178,
-        'price': '₹30,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-    ];
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(60.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppTheme.textGrey),
+            const SizedBox(height: 16),
+            Text(_errorMessage!, style: const TextStyle(color: AppTheme.textGrey)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadPackages,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_listings.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(60.0),
+        child: Center(
+          child: Text(
+            'No packages available',
+            style: TextStyle(color: AppTheme.textGrey, fontSize: 16),
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -215,14 +298,11 @@ class _PackagesGrid extends StatelessWidget {
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         ),
-        itemCount: packageItems.length,
+        itemCount: _listings.length,
         itemBuilder: (context, index) {
+          final listing = _listings[index];
           return _PackageCard(
-            title: packageItems[index]['title'] as String,
-            rating: packageItems[index]['rating'] as double,
-            reviews: packageItems[index]['reviews'] as int,
-            price: packageItems[index]['price'] as String,
-            imageUrl: packageItems[index]['imageUrl'] as String,
+            listing: listing,
           );
         },
       ),
@@ -232,18 +312,10 @@ class _PackagesGrid extends StatelessWidget {
 
 // Package Card Widget
 class _PackageCard extends StatelessWidget {
-  final String title;
-  final double rating;
-  final int reviews;
-  final String price;
-  final String imageUrl;
+  final Listing listing;
 
   const _PackageCard({
-    required this.title,
-    required this.rating,
-    required this.reviews,
-    required this.price,
-    required this.imageUrl,
+    required this.listing,
   });
 
   @override
@@ -254,11 +326,11 @@ class _PackageCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
-              title: title,
-              imageUrl: imageUrl,
-              rating: rating,
-              soldCount: reviews * 10, // Convert reviews to sold count estimate
-              price: price,
+              title: listing.title,
+              imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
+              rating: 4.5, // Default rating since not in listing model
+              soldCount: 100, // Default value
+              price: '₹${listing.price?.toInt() ?? 0}/event',
             ),
           ),
         );
@@ -289,7 +361,7 @@ class _PackageCard extends StatelessWidget {
                   width: double.infinity,
                   color: AppTheme.textGrey.withOpacity(0.2),
                   child: Image.network(
-                    imageUrl,
+                    (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
@@ -333,7 +405,7 @@ class _PackageCard extends StatelessWidget {
                 SizedBox(
                   height: 32,
                   child: Text(
-                    title,
+                    listing.title,
                     style: const TextStyle(
                       color: AppTheme.textDark,
                       fontSize: 12,
@@ -356,7 +428,7 @@ class _PackageCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Flexible(
                       child: Text(
-                        '$rating ($reviews)',
+                        '4.5 (100 reviews)',
                         style: const TextStyle(
                           color: AppTheme.textGrey,
                           fontSize: 10,
@@ -370,7 +442,7 @@ class _PackageCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 // Price
                 Text(
-                  price,
+                  '₹${listing.price?.toInt() ?? 0}/event',
                   style: const TextStyle(
                     color: AppTheme.primaryColor,
                     fontSize: 12,
@@ -382,7 +454,21 @@ class _PackageCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      final cartRepo = CartRepository();
+                      cartRepo.addItem(
+                        listingId: listing.id,
+                        title: listing.title,
+                        subtitle: 'Package',
+                        imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
+                        pricePerDay: listing.price ?? 0.0,
+                        days: 1,
+                        quantity: 1,
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${listing.title} added to cart!'), duration: const Duration(seconds: 2)),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.darkNavy,
                       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -412,71 +498,3 @@ class _PackageCard extends StatelessWidget {
   }
 }
 
-// Recommended Section
-class _RecommendedSection extends StatelessWidget {
-  const _RecommendedSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final recommendedItems = [
-      {
-        'title': 'Complete Wedding Package',
-        'rating': 4.9,
-        'reviews': 456,
-        'price': '₹50,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=400',
-      },
-      {
-        'title': 'Corporate Event Package',
-        'rating': 4.8,
-        'reviews': 312,
-        'price': '₹35,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
-      },
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: const Text(
-            'Recommended for your event',
-            style: TextStyle(
-              color: AppTheme.textDark,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _PackageCard(
-                  title: recommendedItems[0]['title'] as String,
-                  rating: recommendedItems[0]['rating'] as double,
-                  reviews: recommendedItems[0]['reviews'] as int,
-                  price: recommendedItems[0]['price'] as String,
-                  imageUrl: recommendedItems[0]['imageUrl'] as String,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PackageCard(
-                  title: recommendedItems[1]['title'] as String,
-                  rating: recommendedItems[1]['rating'] as double,
-                  reviews: recommendedItems[1]['reviews'] as int,
-                  price: recommendedItems[1]['price'] as String,
-                  imageUrl: recommendedItems[1]['imageUrl'] as String,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
