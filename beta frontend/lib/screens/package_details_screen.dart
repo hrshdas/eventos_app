@@ -45,6 +45,15 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   int _quantity = 1;
   bool _showFullDescription = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Load listing data if listingId is provided
+    if (widget.listingId != null && widget.listingId!.isNotEmpty) {
+      _loadListing();
+    }
+  }
+
   void _addToCart() {
     // Prefer loaded listing; fallback to widget-level props
     final id = _listing?.id ?? widget.listingId ?? (widget.title ?? 'item');
@@ -671,12 +680,20 @@ class _DetailsCard extends StatelessWidget {
     return Transform.translate(
       offset: const Offset(0, -32),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppTheme.white,
-          borderRadius: BorderRadius.only(
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(32),
             topRight: Radius.circular(32),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+              spreadRadius: 0,
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1076,10 +1093,10 @@ class _ActionButtonsRow extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onAddToCart,
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: AppTheme.textGrey.withOpacity(0.3)),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.3), width: 1.5),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
               ),
               backgroundColor: AppTheme.white,
             ),
@@ -1087,42 +1104,53 @@ class _ActionButtonsRow extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
-                  Icons.shopping_cart_outlined,
-                  color: AppTheme.textDark,
-                  size: 20,
+                  Icons.shopping_cart_rounded,
+                  color: AppTheme.primaryColor,
+                  size: 22,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 const Text(
-                  'Add to cart',
+                  'Add to Cart',
                   style: TextStyle(
-                    color: AppTheme.textDark,
+                    color: AppTheme.primaryColor,
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         // Order Now Button
         Expanded(
           child: ElevatedButton(
             onPressed: onOrderNow,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 4,
+              shadowColor: AppTheme.primaryColor.withOpacity(0.4),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
-            child: const Text(
-              'Order Now',
-              style: TextStyle(
-                color: AppTheme.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AppTheme.white, size: 22),
+                const SizedBox(width: 10),
+                const Text(
+                  'Order Now',
+                  style: TextStyle(
+                    color: AppTheme.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1143,22 +1171,51 @@ class _RecommendedSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            children: const [
-              Expanded(
-                child: Text(
-                  'Recommended for your event',
-                  style: TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.thumb_up_rounded,
+                  color: AppTheme.primaryColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Recommended',
+                      style: TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                        height: 1.2,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Similar services you might like',
+                      style: TextStyle(
+                        color: AppTheme.textGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         // Fetch recommended listings from backend
         ListingsList(
           filters: const {

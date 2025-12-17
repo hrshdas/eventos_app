@@ -28,11 +28,25 @@ class Booking {
 
   /// Create Booking from JSON
   factory Booking.fromJson(Map<String, dynamic> json) {
+    // Extract listing details from nested listing object if present
+    String? listingTitle;
+    String? listingImageUrl;
+    
+    if (json['listing'] is Map<String, dynamic>) {
+      final listing = json['listing'] as Map<String, dynamic>;
+      listingTitle = listing['title']?.toString();
+      listingImageUrl = listing['imageUrl']?.toString() ?? listing['primaryImageUrl']?.toString();
+    } else {
+      // Fallback to direct fields
+      listingTitle = json['listingTitle']?.toString();
+      listingImageUrl = json['listingImageUrl']?.toString();
+    }
+    
     return Booking(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       listingId: json['listingId']?.toString() ?? json['listing']?.toString() ?? '',
-      listingTitle: json['listingTitle']?.toString(),
-      listingImageUrl: json['listingImageUrl']?.toString(),
+      listingTitle: listingTitle,
+      listingImageUrl: listingImageUrl,
       startDate: json['startDate'] != null
           ? DateTime.tryParse(json['startDate'].toString())
           : null,
@@ -50,7 +64,11 @@ class Booking {
           ? (json['totalPrice'] is num
               ? json['totalPrice'].toDouble()
               : double.tryParse(json['totalPrice'].toString()))
-          : null,
+          : json['totalAmount'] != null
+              ? (json['totalAmount'] is num
+                  ? json['totalAmount'].toDouble()
+                  : double.tryParse(json['totalAmount'].toString()))
+              : null,
       status: json['status']?.toString() ?? 'pending',
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())

@@ -17,56 +17,180 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
 
   // Form state
   final List<_EventType> _types = [
-    _EventType('Birthday', selected: true),
+    _EventType('Birthday'),
     _EventType('Wedding'),
     _EventType('Corporate'),
-    _EventType('House Party'),
+    _EventType('Anniversary'),
+    _EventType('Baby Shower'),
+    _EventType('Engagement'),
     _EventType('Other'),
   ];
 
-  final TextEditingController _dateCtrl = TextEditingController();
-  final TextEditingController _timeCtrl = TextEditingController();
-  final TextEditingController _locationCtrl = TextEditingController(text: 'Mumbai, India');
-  final TextEditingController _guestsCtrl = TextEditingController(text: '50–80 guests');
-  final TextEditingController _budgetCtrl = TextEditingController(text: '₹50,000 – ₹1,00,000');
-  final TextEditingController _themeCtrl = TextEditingController(text: 'Boho chic, fairy lights, terrace');
+  // Indian cities for dropdown
+  final List<String> _cities = [
+    'Mumbai',
+    'Delhi',
+    'Bangalore',
+    'Hyderabad',
+    'Chennai',
+    'Kolkata',
+    'Pune',
+    'Ahmedabad',
+    'Jaipur',
+    'Lucknow',
+  ];
 
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  String? _selectedLocation;
+  final TextEditingController _guestsCtrl = TextEditingController(text: '50-100');
+  final TextEditingController _budgetCtrl = TextEditingController(text: '50000');
+  final TextEditingController _themeCtrl = TextEditingController(text: 'Bollywood theme with DJ');
+
+  final AiPlannerRepository _repository = AiPlannerRepository();
+  
   bool _isLoading = false;
-  bool _hasGeneratedPlan = false;
+  AiPlanResponse? _planResponse;
+  String? _errorMessage;
 
-  String get _selectedType => _types.firstWhere((t) => t.selected, orElse: () => _types.first).label;
+  String? get _selectedType {
+    final selected = _types.where((t) => t.selected).toList();
+    return selected.isEmpty ? null : selected.first.label;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Set default selections
+    _types[0] = _types[0].copyWith(selected: true);
+    _selectedLocation = _cities[0];
+    _selectedDate = DateTime.now().add(const Duration(days: 30));
+    _selectedTime = const TimeOfDay(hour: 18, minute: 0);
+  }
 
   @override
   void dispose() {
-    _dateCtrl.dispose();
-    _timeCtrl.dispose();
-    _locationCtrl.dispose();
     _guestsCtrl.dispose();
     _budgetCtrl.dispose();
     _themeCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.primaryColor,
+              onPrimary: Colors.white,
+              onSurface: AppTheme.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? const TimeOfDay(hour: 18, minute: 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.primaryColor,
+              onPrimary: Colors.white,
+              onSurface: AppTheme.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedTime = picked;
+      });
+    }
+  }
+
   Future<void> _generatePlan() async {
-    // Minimal validation: ensure event type + location
-    if (_selectedType.isEmpty || _locationCtrl.text.trim().isEmpty) {
+    if (_selectedType == null || _selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an event type and enter a location.')),
+        const SnackBar(content: Text('Please select an event type and location.')),
       );
       return;
     }
 
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an event date.')),
+      );
+      return;
+    }
+
+    // Parse budget
+    final budgetText = _budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    final budget = double.tryParse(budgetText) ?? 50000;
+
+    // Combine date and time
+    final eventDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime?.hour ?? 18,
+      _selectedTime?.minute ?? 0,
+    );
+
     setState(() {
       _isLoading = true;
-      _hasGeneratedPlan = false;
+      _planResponse = null;
+      _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final request = AiPlannerRequest(
+        eventType: _selectedType!,
+        location: _selectedLocation!,
+        guests: _guestsCtrl.text.trim(),
+        budget: budget,
+        date: eventDateTime.toUtc().toIso8601String(),
+        description: _themeCtrl.text.trim(),
+      );
 
-    setState(() {
-      _isLoading = false;
-      _hasGeneratedPlan = true;
-    });
+      final response = await _repository.generatePlan(request);
+
+      setState(() {
+        _planResponse = response;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('AppApiException: ', '').replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage ?? 'Failed to generate plan'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -90,13 +214,22 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
               _FormCard(
                 types: _types,
                 onToggleType: (i) => setState(() {
+                  // Toggle selection - allow unselecting
+                  _types[i] = _types[i].copyWith(selected: !_types[i].selected);
+                  // Unselect all others
                   for (int j = 0; j < _types.length; j++) {
-                    _types[j] = _types[j].copyWith(selected: j == i ? true : _types[j].selected);
+                    if (j != i) {
+                      _types[j] = _types[j].copyWith(selected: false);
+                    }
                   }
                 }),
-                dateCtrl: _dateCtrl,
-                timeCtrl: _timeCtrl,
-                locationCtrl: _locationCtrl,
+                selectedDate: _selectedDate,
+                selectedTime: _selectedTime,
+                selectedLocation: _selectedLocation,
+                cities: _cities,
+                onSelectDate: _selectDate,
+                onSelectTime: _selectTime,
+                onLocationChanged: (value) => setState(() => _selectedLocation = value),
                 guestsCtrl: _guestsCtrl,
                 budgetCtrl: _budgetCtrl,
                 themeCtrl: _themeCtrl,
@@ -105,14 +238,14 @@ class _AiPlannerScreenState extends State<AiPlannerScreen> {
               ),
               _AiSuggestionsCard(
                 isLoading: _isLoading,
-                hasGeneratedPlan: _hasGeneratedPlan,
-                selectedType: _selectedType,
-                location: _locationCtrl.text.trim(),
-                guests: _guestsCtrl.text.trim(),
-                theme: _themeCtrl.text.trim(),
+                planResponse: _planResponse,
+                errorMessage: _errorMessage,
                 onViewPackages: () {
-                  // ignore: avoid_print
-                  print('View matching packages tapped');
+                  if (_planResponse != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Found ${_planResponse!.totalMatches} matching services')),
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 24),
@@ -154,18 +287,31 @@ class AiPlannerScreenContent extends StatefulWidget {
 
 class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
   final List<_EventType> _types = [
-    _EventType('Birthday', selected: true),
+    _EventType('Birthday'),
     _EventType('Wedding'),
     _EventType('Corporate'),
-    _EventType('Anniversary', selected: false),
-    _EventType('Baby Shower', selected: false),
-    _EventType('Engagement', selected: false),
+    _EventType('Anniversary'),
+    _EventType('Baby Shower'),
+    _EventType('Engagement'),
     _EventType('Other'),
   ];
 
-  final TextEditingController _dateCtrl = TextEditingController();
-  final TextEditingController _timeCtrl = TextEditingController();
-  final TextEditingController _locationCtrl = TextEditingController(text: 'Mumbai');
+  final List<String> _cities = [
+    'Mumbai',
+    'Delhi',
+    'Bangalore',
+    'Hyderabad',
+    'Chennai',
+    'Kolkata',
+    'Pune',
+    'Ahmedabad',
+    'Jaipur',
+    'Lucknow',
+  ];
+
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  String? _selectedLocation;
   final TextEditingController _guestsCtrl = TextEditingController(text: '50-100');
   final TextEditingController _budgetCtrl = TextEditingController(text: '50000');
   final TextEditingController _themeCtrl = TextEditingController(text: 'Bollywood theme with DJ');
@@ -176,35 +322,95 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
   AiPlanResponse? _planResponse;
   String? _errorMessage;
 
-  String get _selectedType => _types.firstWhere((t) => t.selected, orElse: () => _types.first).label;
+  String? get _selectedType {
+    final selected = _types.where((t) => t.selected).toList();
+    return selected.isEmpty ? null : selected.first.label;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _types[0] = _types[0].copyWith(selected: true);
+    _selectedLocation = _cities[0];
+    _selectedDate = DateTime.now().add(const Duration(days: 30));
+    _selectedTime = const TimeOfDay(hour: 18, minute: 0);
+  }
 
   @override
   void dispose() {
-    _dateCtrl.dispose();
-    _timeCtrl.dispose();
-    _locationCtrl.dispose();
     _guestsCtrl.dispose();
     _budgetCtrl.dispose();
     _themeCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.primaryColor,
+              onPrimary: Colors.white,
+              onSurface: AppTheme.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Future<void> _selectTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? const TimeOfDay(hour: 18, minute: 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppTheme.primaryColor,
+              onPrimary: Colors.white,
+              onSurface: AppTheme.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) setState(() => _selectedTime = picked);
+  }
+
   Future<void> _generatePlan() async {
-    if (_selectedType.isEmpty || _locationCtrl.text.trim().isEmpty) {
+    if (_selectedType == null || _selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an event type and enter a location.')),
+        const SnackBar(content: Text('Please select an event type and location.')),
       );
       return;
     }
 
-    // Parse budget
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an event date.')),
+      );
+      return;
+    }
+
     final budgetText = _budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
     final budget = double.tryParse(budgetText) ?? 50000;
 
-    // Parse date
-    final now = DateTime.now();
-    final eventDate = now.add(const Duration(days: 30)); // Default to 30 days from now
-    final dateString = eventDate.toIso8601String();
+    final eventDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime?.hour ?? 18,
+      _selectedTime?.minute ?? 0,
+    );
 
     setState(() {
       _isLoading = true;
@@ -214,16 +420,15 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
 
     try {
       final request = AiPlannerRequest(
-        eventType: _selectedType,
-        location: _locationCtrl.text.trim(),
+        eventType: _selectedType!,
+        location: _selectedLocation!,
         guests: _guestsCtrl.text.trim(),
         budget: budget,
-        date: dateString,
+        date: eventDateTime.toUtc().toIso8601String(),
         description: _themeCtrl.text.trim(),
       );
 
       final response = await _repository.generatePlan(request);
-
       setState(() {
         _planResponse = response;
         _isLoading = false;
@@ -257,13 +462,20 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
             _FormCard(
               types: _types,
               onToggleType: (i) => setState(() {
+                _types[i] = _types[i].copyWith(selected: !_types[i].selected);
                 for (int j = 0; j < _types.length; j++) {
-                  _types[j] = _types[j].copyWith(selected: j == i ? true : _types[j].selected);
+                  if (j != i) {
+                    _types[j] = _types[j].copyWith(selected: false);
+                  }
                 }
               }),
-              dateCtrl: _dateCtrl,
-              timeCtrl: _timeCtrl,
-              locationCtrl: _locationCtrl,
+              selectedDate: _selectedDate,
+              selectedTime: _selectedTime,
+              selectedLocation: _selectedLocation,
+              cities: _cities,
+              onSelectDate: _selectDate,
+              onSelectTime: _selectTime,
+              onLocationChanged: (value) => setState(() => _selectedLocation = value),
               guestsCtrl: _guestsCtrl,
               budgetCtrl: _budgetCtrl,
               themeCtrl: _themeCtrl,
@@ -301,7 +513,7 @@ class _AiHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const headerHeight = 200.0;
+    const headerHeight = 210.0;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -309,16 +521,23 @@ class _AiHeader extends StatelessWidget {
         Container(
           width: double.infinity,
           height: headerHeight,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
               colors: [Color(0xFFFF4F6D), Color(0xFFFF6B5A)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(28),
-              bottomRight: Radius.circular(28),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(32),
+              bottomRight: Radius.circular(32),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withOpacity(0.25),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.only(top: 24, left: 20, right: 20),
@@ -328,48 +547,76 @@ class _AiHeader extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      borderRadius: BorderRadius.circular(24),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: Icon(Icons.arrow_back, color: Colors.white),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(8.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+                        ),
                       ),
                     ),
-                    const Text(
-                      'AI Planner',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'AI Planner',
+                          style: TextStyle(
+                            color: AppTheme.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
-                    const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Icon(Icons.auto_awesome, color: Colors.white),
+                    Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.stars_rounded, color: Colors.white, size: 22),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 18),
                 const Text(
-                  'Plan your event with AI',
+                  'Plan Your Perfect Event',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppTheme.white,
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Opacity(
-                  opacity: 0.85,
+                  opacity: 0.9,
                   child: const Text(
-                    'Tell us about your event and we’ll suggest themes, decor, rentals and a timeline.',
+                    'Tell us about your event and we\'ll suggest themes, decor, food, music and more',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppTheme.white,
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w400,
+                      letterSpacing: 0.2,
+                      height: 1.4,
                     ),
                   ),
                 ),
@@ -433,9 +680,13 @@ class _FloatingDescribePill extends StatelessWidget {
 class _FormCard extends StatelessWidget {
   final List<_EventType> types;
   final void Function(int) onToggleType;
-  final TextEditingController dateCtrl;
-  final TextEditingController timeCtrl;
-  final TextEditingController locationCtrl;
+  final DateTime? selectedDate;
+  final TimeOfDay? selectedTime;
+  final String? selectedLocation;
+  final List<String> cities;
+  final VoidCallback onSelectDate;
+  final VoidCallback onSelectTime;
+  final void Function(String?) onLocationChanged;
   final TextEditingController guestsCtrl;
   final TextEditingController budgetCtrl;
   final TextEditingController themeCtrl;
@@ -445,9 +696,13 @@ class _FormCard extends StatelessWidget {
   const _FormCard({
     required this.types,
     required this.onToggleType,
-    required this.dateCtrl,
-    required this.timeCtrl,
-    required this.locationCtrl,
+    required this.selectedDate,
+    required this.selectedTime,
+    required this.selectedLocation,
+    required this.cities,
+    required this.onSelectDate,
+    required this.onSelectTime,
+    required this.onLocationChanged,
     required this.guestsCtrl,
     required this.budgetCtrl,
     required this.themeCtrl,
@@ -491,27 +746,31 @@ class _FormCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _LinedTextField(
-                  controller: dateCtrl,
-                  hintText: 'Event date',
+                child: _PickerButton(
+                  label: selectedDate != null
+                      ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}'
+                      : 'Event date',
                   icon: Icons.calendar_today_outlined,
+                  onTap: onSelectDate,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _LinedTextField(
-                  controller: timeCtrl,
-                  hintText: 'Start time',
+                child: _PickerButton(
+                  label: selectedTime != null
+                      ? selectedTime!.format(context)
+                      : 'Start time',
                   icon: Icons.schedule_outlined,
+                  onTap: onSelectTime,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          _LinedTextField(
-            controller: locationCtrl,
-            hintText: 'Location / City',
-            icon: Icons.location_on_outlined,
+          _LocationDropdown(
+            selectedLocation: selectedLocation,
+            cities: cities,
+            onChanged: onLocationChanged,
           ),
           const SizedBox(height: 16),
           Row(
@@ -765,7 +1024,7 @@ class _PlanSuggestions extends StatelessWidget {
         const SizedBox(height: 16),
         
         // Decor section
-        if (plan.decor.isNotEmpty) ..[
+        if (plan.decor.isNotEmpty) ...[
           const _SectionHeader(icon: Icons.palette_outlined, title: 'Decor Ideas'),
           const SizedBox(height: 8),
           ...plan.decor.map((item) => _BulletLine(text: item)),
@@ -773,7 +1032,7 @@ class _PlanSuggestions extends StatelessWidget {
         ],
         
         // Food section
-        if (plan.food.isNotEmpty) ..[
+        if (plan.food.isNotEmpty) ...[
           const _SectionHeader(icon: Icons.restaurant_outlined, title: 'Food Suggestions'),
           const SizedBox(height: 8),
           ...plan.food.map((item) => _BulletLine(text: item)),
@@ -781,7 +1040,7 @@ class _PlanSuggestions extends StatelessWidget {
         ],
         
         // Music section
-        if (plan.music.isNotEmpty) ..[
+        if (plan.music.isNotEmpty) ...[
           const _SectionHeader(icon: Icons.music_note_outlined, title: 'Music & Entertainment'),
           const SizedBox(height: 8),
           ...plan.music.map((item) => _BulletLine(text: item)),
@@ -1027,7 +1286,108 @@ class _EventType {
   final bool selected;
   _EventType(this.label, {this.selected = false});
 
-  _EventType copyWith({String? label, bool? selected}) {
-    return _EventType(label ?? this.label, selected: selected ?? this.selected);
+  _EventType copyWith({bool? selected}) {
+    return _EventType(label, selected: selected ?? this.selected);
+  }
+}
+
+// Picker button widget for date/time selection
+class _PickerButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _PickerButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FAFB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.textGrey.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.textGrey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: label.contains('/') || label.contains(':') || label.contains('AM') || label.contains('PM')
+                      ? AppTheme.textDark
+                      : AppTheme.textGrey,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Location dropdown widget
+class _LocationDropdown extends StatelessWidget {
+  final String? selectedLocation;
+  final List<String> cities;
+  final void Function(String?) onChanged;
+
+  const _LocationDropdown({
+    required this.selectedLocation,
+    required this.cities,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.textGrey.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, color: AppTheme.textGrey, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedLocation,
+                hint: const Text(
+                  'Select location',
+                  style: TextStyle(color: AppTheme.textGrey),
+                ),
+                isExpanded: true,
+                icon: const Icon(Icons.arrow_drop_down, color: AppTheme.textGrey),
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 14,
+                ),
+                items: cities.map((String city) {
+                  return DropdownMenuItem<String>(
+                    value: city,
+                    child: Text(city),
+                  );
+                }).toList(),
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

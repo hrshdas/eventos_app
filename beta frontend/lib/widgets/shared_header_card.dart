@@ -101,7 +101,18 @@ class _SharedHeaderCardState extends State<SharedHeaderCard> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
-      decoration: decoration,
+      decoration: decoration.copyWith(
+        boxShadow: [
+          BoxShadow(
+            color: widget.backgroundGradient != null
+                ? AppTheme.primaryColor.withOpacity(0.2)
+                : Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -109,54 +120,76 @@ class _SharedHeaderCardState extends State<SharedHeaderCard> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Hi, Welcome ',
-                  style: widget.backgroundGradient != null
-                      ? const TextStyle(
-                          color: AppTheme.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                        )
-                      : AppTheme.welcomeText,
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  children: [
+                    Text(
+                      'Hi, Welcome',
+                      style: widget.backgroundGradient != null
+                          ? const TextStyle(
+                              color: AppTheme.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            )
+                          : AppTheme.welcomeText.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '👋',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
               Flexible(
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: _selectCity,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: widget.backgroundGradient != null
-                            ? Colors.white.withOpacity(0.3)
-                            : AppTheme.darkGrey,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.location_on,
-                              color: AppTheme.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              selectedCity,
-                              style: widget.backgroundGradient != null
-                                  ? const TextStyle(
-                                      color: AppTheme.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w400,
-                                    )
-                                  : AppTheme.locationText,
-                            ),
-                          ],
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _selectCity,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: widget.backgroundGradient != null
+                              ? Colors.white.withOpacity(0.25)
+                              : AppTheme.darkGrey,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.location_on,
+                                color: AppTheme.white,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                selectedCity,
+                                style: widget.backgroundGradient != null
+                                    ? const TextStyle(
+                                        color: AppTheme.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      )
+                                    : AppTheme.locationText.copyWith(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -165,10 +198,10 @@ class _SharedHeaderCardState extends State<SharedHeaderCard> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           // App Logo
-          const EventosLogoSvg(height: 36, color: AppTheme.white),
-          const SizedBox(height: 16),
+          const EventosLogoSvg(height: 38, color: AppTheme.white),
+          const SizedBox(height: 18),
           // Search Bar
           SearchBarWidget(
             hintText: widget.searchHint ?? 'Search BBQ grill, DJ, tents...',
@@ -191,78 +224,100 @@ class _SharedHeaderCardState extends State<SharedHeaderCard> {
           Row(
             children: [
               Expanded(
-                child: GestureDetector(
-                  onTap: _selectDate,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: widget.backgroundGradient != null
-                          ? Colors.white.withOpacity(0.2)
-                          : AppTheme.darkGrey,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.calendar_today,
-                          color: AppTheme.white,
-                          size: 16,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _selectDate,
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: widget.backgroundGradient != null
+                            ? Colors.white.withOpacity(0.2)
+                            : AppTheme.darkGrey,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            dateText,
-                            style: widget.backgroundGradient != null
-                                ? const TextStyle(
-                                    color: AppTheme.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                  )
-                                : AppTheme.locationText,
-                            overflow: TextOverflow.ellipsis,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.calendar_today,
+                            color: AppTheme.white,
+                            size: 16,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              dateText,
+                              style: widget.backgroundGradient != null
+                                  ? const TextStyle(
+                                      color: AppTheme.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    )
+                                  : AppTheme.locationText.copyWith(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: GestureDetector(
-                  onTap: _selectCity,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: widget.backgroundGradient != null
-                          ? Colors.white.withOpacity(0.2)
-                          : AppTheme.darkGrey,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: AppTheme.white,
-                          size: 16,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _selectCity,
+                    borderRadius: BorderRadius.circular(22),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: widget.backgroundGradient != null
+                            ? Colors.white.withOpacity(0.2)
+                            : AppTheme.darkGrey,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
                         ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            selectedCity,
-                            style: widget.backgroundGradient != null
-                                ? const TextStyle(
-                                    color: AppTheme.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w400,
-                                  )
-                                : AppTheme.locationText,
-                            overflow: TextOverflow.ellipsis,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            color: AppTheme.white,
+                            size: 16,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              selectedCity,
+                              style: widget.backgroundGradient != null
+                                  ? const TextStyle(
+                                      color: AppTheme.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    )
+                                  : AppTheme.locationText.copyWith(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
