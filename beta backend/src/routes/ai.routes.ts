@@ -1,24 +1,29 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { partyPlannerController } from '../controllers/ai.controller';
+import { generatePlanController } from '../controllers/ai.controller';
 import { validateRequest } from '../middleware/validateRequest';
+import { aiPlannerRequestSchema } from '../validation/ai.schemas';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
-const partyPlannerSchema = z.object({
-  body: z.object({
-    date: z.string().min(1, 'Date is required'),
-    guests: z.number().int().positive('Guests must be a positive number'),
-    budget: z.number().positive('Budget must be positive'),
-    theme: z.string().optional(),
-    location: z.string().optional(),
-  }),
+// AI-specific rate limiter: 10 requests per 15 minutes
+const aiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    error: 'Too many AI requests. Please try again in 15 minutes.',
+    code: 'AI_RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 router.post(
-  '/party-planner',
-  validateRequest(partyPlannerSchema),
-  partyPlannerController
+  '/plan',
+  aiRateLimiter,
+  validateRequest(aiPlannerRequestSchema),
+  generatePlanController
 );
 
 export default router;

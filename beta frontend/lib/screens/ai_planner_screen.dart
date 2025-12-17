@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/navigation_helper.dart';
+import '../features/ai_planner/data/ai_planner_repository.dart';
+import '../features/ai_planner/domain/models/ai_planner_request.dart';
+import '../features/ai_planner/domain/models/ai_plan.dart';
 
 class AiPlannerScreen extends StatefulWidget {
   const AiPlannerScreen({super.key});
@@ -154,19 +157,24 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
     _EventType('Birthday', selected: true),
     _EventType('Wedding'),
     _EventType('Corporate'),
-    _EventType('House Party'),
+    _EventType('Anniversary', selected: false),
+    _EventType('Baby Shower', selected: false),
+    _EventType('Engagement', selected: false),
     _EventType('Other'),
   ];
 
   final TextEditingController _dateCtrl = TextEditingController();
   final TextEditingController _timeCtrl = TextEditingController();
-  final TextEditingController _locationCtrl = TextEditingController(text: 'Mumbai, India');
-  final TextEditingController _guestsCtrl = TextEditingController(text: '50–80 guests');
-  final TextEditingController _budgetCtrl = TextEditingController(text: '₹50,000 – ₹1,00,000');
-  final TextEditingController _themeCtrl = TextEditingController(text: 'Boho chic, fairy lights, terrace');
+  final TextEditingController _locationCtrl = TextEditingController(text: 'Mumbai');
+  final TextEditingController _guestsCtrl = TextEditingController(text: '50-100');
+  final TextEditingController _budgetCtrl = TextEditingController(text: '50000');
+  final TextEditingController _themeCtrl = TextEditingController(text: 'Bollywood theme with DJ');
 
+  final AiPlannerRepository _repository = AiPlannerRepository();
+  
   bool _isLoading = false;
-  bool _hasGeneratedPlan = false;
+  AiPlanResponse? _planResponse;
+  String? _errorMessage;
 
   String get _selectedType => _types.firstWhere((t) => t.selected, orElse: () => _types.first).label;
 
@@ -188,9 +196,53 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
       );
       return;
     }
-    setState(() { _isLoading = true; _hasGeneratedPlan = false; });
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() { _isLoading = false; _hasGeneratedPlan = true; });
+
+    // Parse budget
+    final budgetText = _budgetCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    final budget = double.tryParse(budgetText) ?? 50000;
+
+    // Parse date
+    final now = DateTime.now();
+    final eventDate = now.add(const Duration(days: 30)); // Default to 30 days from now
+    final dateString = eventDate.toIso8601String();
+
+    setState(() {
+      _isLoading = true;
+      _planResponse = null;
+      _errorMessage = null;
+    });
+
+    try {
+      final request = AiPlannerRequest(
+        eventType: _selectedType,
+        location: _locationCtrl.text.trim(),
+        guests: _guestsCtrl.text.trim(),
+        budget: budget,
+        date: dateString,
+        description: _themeCtrl.text.trim(),
+      );
+
+      final response = await _repository.generatePlan(request);
+
+      setState(() {
+        _planResponse = response;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('AppApiException: ', '').replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage ?? 'Failed to generate plan'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -220,12 +272,21 @@ class _AiPlannerScreenContentState extends State<AiPlannerScreenContent> {
             ),
             _AiSuggestionsCard(
               isLoading: _isLoading,
-              hasGeneratedPlan: _hasGeneratedPlan,
-              selectedType: _selectedType,
-              location: _locationCtrl.text.trim(),
-              guests: _guestsCtrl.text.trim(),
-              theme: _themeCtrl.text.trim(),
-              onViewPackages: () { /* TODO: route to filtered listing */ },
+              planResponse: _planResponse,
+              errorMessage: _errorMessage,
+              onViewPackages: () {
+                if (_planResponse != null) {
+                  // TODO: Navigate to packages screen with filters
+                  // NavigationHelper.navigateToPackagesWithFilters(
+                  //   context,
+                  //   categories: _planResponse!.plan.recommendedCategories,
+                  //   location: _locationCtrl.text.trim(),
+                  // );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Found ${_planResponse!.totalMatches} matching services')),
+                  );
+                }
+              },
             ),
             const SizedBox(height: 24),
           ],
@@ -516,20 +577,14 @@ class _FormCard extends StatelessWidget {
 
 class _AiSuggestionsCard extends StatelessWidget {
   final bool isLoading;
-  final bool hasGeneratedPlan;
-  final String selectedType;
-  final String location;
-  final String guests;
-  final String theme;
+  final AiPlanResponse? planResponse;
+  final String? errorMessage;
   final VoidCallback onViewPackages;
 
   const _AiSuggestionsCard({
     required this.isLoading,
-    required this.hasGeneratedPlan,
-    required this.selectedType,
-    required this.location,
-    required this.guests,
-    required this.theme,
+    required this.planResponse,
+    required this.errorMessage,
     required this.onViewPackages,
   });
 
@@ -553,15 +608,14 @@ class _AiSuggestionsCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         child: isLoading
             ? _LoadingState()
-            : hasGeneratedPlan
-                ? _PlanSuggestions(
-                    selectedType: selectedType,
-                    location: location,
-                    guests: guests,
-                    theme: theme,
-                    onViewPackages: onViewPackages,
-                  )
-                : const _EmptyState(),
+            : errorMessage != null
+                ? _ErrorState(message: errorMessage!)
+                : planResponse != null
+                    ? _PlanSuggestions(
+                        planResponse: planResponse!,
+                        onViewPackages: onViewPackages,
+                      )
+                    : const _EmptyState(),
       ),
     );
   }
@@ -612,7 +666,7 @@ class _LoadingState extends StatelessWidget {
         CircularProgressIndicator(strokeWidth: 2),
         SizedBox(height: 12),
         Text(
-          'Thinking about your event…',
+          'Generating your event plan with AI…',
           style: TextStyle(
             color: AppTheme.textGrey,
             fontSize: 12.5,
@@ -624,76 +678,169 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
+class _ErrorState extends StatelessWidget {
+  final String message;
+  const _ErrorState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('error'),
+      children: [
+        const SizedBox(height: 8),
+        const Icon(Icons.error_outline, color: Colors.red, size: 40),
+        const SizedBox(height: 12),
+        const Text(
+          'Failed to generate plan',
+          style: TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppTheme.textGrey,
+            fontSize: 12.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
 class _PlanSuggestions extends StatelessWidget {
-  final String selectedType;
-  final String location;
-  final String guests;
-  final String theme;
+  final AiPlanResponse planResponse;
   final VoidCallback onViewPackages;
 
   const _PlanSuggestions({
-    required this.selectedType,
-    required this.location,
-    required this.guests,
-    required this.theme,
+    required this.planResponse,
     required this.onViewPackages,
   });
 
   @override
   Widget build(BuildContext context) {
+    final plan = planResponse.plan;
+    
     return Column(
       key: const ValueKey('plan'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Suggested plan',
-          style: TextStyle(
-            color: AppTheme.textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+          children: [
+            const Icon(Icons.auto_awesome, color: AppTheme.primaryColor, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                plan.theme,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (!planResponse.isAIGenerated)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Fallback',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        // Decor section
+        if (plan.decor.isNotEmpty) ..[
+          const _SectionHeader(icon: Icons.palette_outlined, title: 'Decor Ideas'),
+          const SizedBox(height: 8),
+          ...plan.decor.map((item) => _BulletLine(text: item)),
+          const SizedBox(height: 12),
+        ],
+        
+        // Food section
+        if (plan.food.isNotEmpty) ..[
+          const _SectionHeader(icon: Icons.restaurant_outlined, title: 'Food Suggestions'),
+          const SizedBox(height: 8),
+          ...plan.food.map((item) => _BulletLine(text: item)),
+          const SizedBox(height: 12),
+        ],
+        
+        // Music section
+        if (plan.music.isNotEmpty) ..[
+          const _SectionHeader(icon: Icons.music_note_outlined, title: 'Music & Entertainment'),
+          const SizedBox(height: 8),
+          ...plan.music.map((item) => _BulletLine(text: item)),
+          const SizedBox(height: 16),
+        ],
+        
+        const Divider(),
+        const SizedBox(height: 12),
+        
+        // Matching services count
+        Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Found ${planResponse.totalMatches} matching services',
+              style: const TextStyle(
+                color: AppTheme.textDark,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        _BulletLine(icon: Icons.style_outlined, text: 'Theme: ${_orDefault(theme, "Classic Gold & White Decor")}'),
-        _BulletLine(icon: Icons.place_outlined, text: 'Venue: ${_orDefault(location, "Rooftop restaurant in Bandra")}'),
-        _BulletLine(icon: Icons.celebration_outlined, text: 'Event: ${_orDefault(selectedType, "Birthday")}, $guests'),
-        const _BulletLine(icon: Icons.palette_outlined, text: 'Decor: Balloon arch, neon sign, fairy lights'),
-        const _BulletLine(icon: Icons.restaurant_outlined, text: 'Food: Live BBQ + mocktail bar'),
-        const _BulletLine(icon: Icons.music_note_outlined, text: 'Music: DJ + curated playlist'),
-        const SizedBox(height: 16),
+        
+        // Recommended categories
         const Text(
           'Recommended categories',
           style: TextStyle(
             color: AppTheme.textDark,
-            fontSize: 14.5,
-            fontWeight: FontWeight.w700,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: const [
-            _CategoryChip('Decor'),
-            _CategoryChip('Rentals'),
-            _CategoryChip('Talent & Staff'),
-            _CategoryChip('Ready-to-book packages'),
-          ],
+          children: plan.recommendedCategories.map((cat) => _CategoryChip(cat)).toList(),
         ),
         const SizedBox(height: 16),
+        
+        // View packages button
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton(
+          child: ElevatedButton(
             onPressed: onViewPackages,
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppTheme.primaryColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
             child: const Text(
-              'View matching packages',
+              'View Matching Packages',
               style: TextStyle(
-                color: AppTheme.primaryColor,
+                color: AppTheme.white,
                 fontWeight: FontWeight.w700,
+                fontSize: 15,
               ),
             ),
           ),
@@ -701,27 +848,44 @@ class _PlanSuggestions extends StatelessWidget {
       ],
     );
   }
+}
 
-  static String _orDefault(String v, String d) {
-    final s = v.trim();
-    return s.isEmpty ? d : s;
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  const _SectionHeader({required this.icon, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppTheme.primaryColor),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppTheme.textDark,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class _BulletLine extends StatelessWidget {
-  final IconData icon;
   final String text;
-  const _BulletLine({required this.icon, required this.text});
+  const _BulletLine({required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppTheme.textDark),
-          const SizedBox(width: 8),
+          const Text('• ', style: TextStyle(color: AppTheme.primaryColor, fontSize: 16)),
           Expanded(
             child: Text(
               text,
