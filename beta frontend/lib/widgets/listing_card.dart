@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../features/listings/domain/models/listing.dart';
 import '../theme/app_theme.dart';
 import '../screens/package_details_screen.dart';
+import '../api/api_config.dart';
+import '../features/cart/data/cart_repository.dart';
 
 /// Reusable listing card widget
 class ListingCard extends StatelessWidget {
@@ -17,6 +19,17 @@ class ListingCard extends StatelessWidget {
     this.onBookNow,
     this.onAddToCart,
   });
+
+  String _buildImageUrl(String? path, List<String>? images) {
+    String? candidate;
+    if (images != null && images.isNotEmpty) {
+      candidate = images.first;
+    } else if (path != null && path.isNotEmpty) {
+      candidate = path;
+    }
+    if (candidate == null || candidate.isEmpty) return '';
+    return candidate.startsWith('http') ? candidate : '$apiPublicBase/$candidate';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,21 +76,27 @@ class ListingCard extends StatelessWidget {
                     height: 120,
                     width: double.infinity,
                     color: AppTheme.textGrey.withOpacity(0.2),
-                    child: listing.imageUrl != null
-                        ? Image.network(
-                            listing.imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: AppTheme.textGrey.withOpacity(0.2),
-                                child: const Icon(Icons.image, size: 50),
-                              );
-                            },
-                          )
-                        : Container(
+                    child: Builder(
+                      builder: (context) {
+                        final img = _buildImageUrl(listing.imageUrl, listing.images);
+                        if (img.isEmpty) {
+                          return Container(
                             color: AppTheme.textGrey.withOpacity(0.2),
                             child: const Icon(Icons.image, size: 50),
-                          ),
+                          );
+                        }
+                        return Image.network(
+                          img,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppTheme.textGrey.withOpacity(0.2),
+                              child: const Icon(Icons.image, size: 50),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                   Positioned(
                     top: 8,
@@ -138,22 +157,21 @@ class ListingCard extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: onBookNow ??
-                          () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => PackageDetailsScreen(
-                                  listingId: listing.id,
-                                  title: listing.title,
-                                  imageUrl: listing.imageUrl ?? '',
-                                  rating: listing.rating ?? 0,
-                                  soldCount: (listing.reviewCount ?? 0),
-                                  price: listing.formattedPrice,
-                                ),
-                              ),
-                            );
-                          },
+                      onPressed: onBookNow ?? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PackageDetailsScreen(
+                              listingId: listing.id,
+                              title: listing.title,
+                              imageUrl: listing.imageUrl ?? '',
+                              rating: listing.rating ?? 0,
+                              soldCount: (listing.reviewCount ?? 0),
+                              price: listing.formattedPrice,
+                            ),
+                          ),
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
                         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -169,29 +187,38 @@ class ListingCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (onAddToCart != null) ...[
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: onAddToCart,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: onAddToCart ?? () {
+                        CartRepository().addItem(
+                          listingId: listing.id,
+                          title: listing.title,
+                          subtitle: listing.description ?? '',
+                          imageUrl: _buildImageUrl(listing.imageUrl, listing.images),
+                          pricePerDay: listing.price ?? 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Add to Cart',
-                          style: TextStyle(
-                            color: AppTheme.textDark,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: TextStyle(
+                          color: AppTheme.textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),

@@ -34,8 +34,8 @@ export const createApp = (): Express => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // Serve static files (uploaded images)
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  // Note: Images are now served from Cloudinary CDN, no local static file serving needed
+
 
   // Health check
   app.get('/health', (req, res) => {

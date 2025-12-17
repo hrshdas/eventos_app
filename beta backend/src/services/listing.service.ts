@@ -1,6 +1,7 @@
 import { prisma } from '../config/db';
 import { Listing, Prisma } from '@prisma/client';
 import { ApiError } from '../middleware/errorHandler';
+import { deleteImagesFromCloudinary } from '../utils/cloudinaryUpload';
 
 export interface CreateListingData {
   ownerId: string;
@@ -39,7 +40,7 @@ export const createListing = async (
 ): Promise<Listing> => {
   // Immediately list newly created listings
   const isActive = true;
-  
+
   return prisma.listing.create({
     data: {
       ownerId: data.ownerId,
@@ -191,6 +192,17 @@ export const deleteListing = async (
     const error: ApiError = new Error('Not authorized to modify this listing');
     error.statusCode = 403;
     throw error;
+  }
+
+  // Delete images from Cloudinary first
+  if (listing.images && listing.images.length > 0) {
+    try {
+      const deletedCount = await deleteImagesFromCloudinary(listing.images);
+      console.log(`✓ Deleted ${deletedCount}/${listing.images.length} images from Cloudinary`);
+    } catch (error) {
+      console.error('Error deleting images from Cloudinary:', error);
+      // Continue with listing deletion even if image deletion fails
+    }
   }
 
   await prisma.listing.delete({

@@ -38,7 +38,7 @@ class NotificationsRepository {
     try {
       final resp = await _api.get('/notifications', queryParameters: {
         if (cursor != null) 'cursor': cursor,
-        'limit': limit,
+        // Intentionally omit 'limit' to avoid backend receiving it as a string and passing it to Prisma
       });
       final list = (resp['data'] as List<dynamic>? ?? [])
           .map((e) => NotificationItem.fromJson(e as Map<String, dynamic>))

@@ -1,3 +1,8 @@
+/**
+ * Auth service
+ * - Adds Google Sign-In: verifies idToken against configured audiences
+ * - Creates or reuses user by email, and stores googleId/avatarUrl when available
+ */
 import bcrypt from 'bcryptjs';
 import { prisma } from '../config/db';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
@@ -6,7 +11,8 @@ import { ApiError } from '../middleware/errorHandler';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { config } from '../config/env';
 
-const googleClient = new OAuth2Client(config.google.clientId);
+// Client may be constructed without clientId; we validate audiences during verify
+const googleClient = new OAuth2Client(config.google.clientId || undefined);
 
 export interface SignupData {
   name: string;
@@ -122,10 +128,12 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
 };
 
 export const googleLogin = async (idToken: string): Promise<AuthResponse> => {
-  // Verify the Google ID token
+  // Verify the Google ID token against known audiences (client IDs)
   const ticket = await googleClient.verifyIdToken({
     idToken,
-    audience: config.google.clientId,
+    audience: (config.google.audiences && config.google.audiences.length > 0)
+      ? config.google.audiences
+      : (config.google.clientId ? [config.google.clientId] : undefined),
   });
   const payload: TokenPayload | undefined = ticket.getPayload();
 
@@ -137,6 +145,8 @@ export const googleLogin = async (idToken: string): Promise<AuthResponse> => {
 
   const email = (payload.email || '').trim().toLowerCase();
   const name = payload.name || 'Google User';
+  const googleId = payload.sub || undefined;
+  const avatarUrl = payload.picture || undefined;
 
   if (!email) {
     const error: ApiError = new Error('Google account email is required');
@@ -148,7 +158,7 @@ export const googleLogin = async (idToken: string): Promise<AuthResponse> => {
   let user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
-    // Create a new user with a random password hash (will not be used for login)
+    // Create a new user with a random password hash (will not be used for password login)
     const randomSecret = await bcrypt.hash(`${email}:${Date.now()}`, 10);
     user = await prisma.user.create({
       data: {
@@ -156,8 +166,19 @@ export const googleLogin = async (idToken: string): Promise<AuthResponse> => {
         email,
         passwordHash: randomSecret,
         role: UserRole.CONSUMER,
+        // Optional fields if present in schema
+        ...(googleId ? { googleId } : {}),
+        ...(avatarUrl ? { avatarUrl } : {}),
       },
     });
+  } else {
+    // Update missing google fields if not set
+    const updates: Record<string, any> = {};
+    if (googleId && !(user as any).googleId) updates.googleId = googleId;
+    if (avatarUrl && !(user as any).avatarUrl) updates.avatarUrl = avatarUrl;
+    if (Object.keys(updates).length) {
+      user = await prisma.user.update({ where: { id: user.id }, data: updates });
+    }
   }
 
   const accessToken = generateAccessToken(user);

@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
-import '../features/listings/domain/models/listing.dart';
 import '../widgets/eventos_logo_svg.dart';
 import '../widgets/listings_list.dart';
 import '../core/location/location_provider.dart';
@@ -13,6 +12,7 @@ import '../widgets/shared_header_card.dart';
 import 'cart_screen.dart';
 import '../features/cart/data/cart_repository.dart';
 import 'packages_screen.dart';
+import 'event_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,25 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final CartRepository _cartRepo = CartRepository();
-
-  @override
-  void initState() {
-    super.initState();
-    _cartRepo.addListener(_onCartChanged);
-  }
-
-  @override
-  void dispose() {
-    _cartRepo.removeListener(_onCartChanged);
-    super.dispose();
-  }
-
-  void _onCartChanged() {
-    setState(() {
-      // Rebuild when cart changes
-    });
-  }
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -54,19 +36,36 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  SharedHeaderCard(
-                    showCartIcon: true,
-                    cartItemCount: _cartRepo.itemCount,
-                    onCartTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const CartScreen()),
+                  AnimatedBuilder(
+                    animation: CartRepository(),
+                    builder: (context, _) {
+                      return SharedHeaderCard(
+                        showCartIcon: true,
+                        cartItemCount: CartRepository().itemCount,
+                        onCartTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const CartScreen()),
+                          );
+                        },
+                        onSearch: (q) {
+                          final query = q.trim();
+                          if (query.isEmpty) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PackagesScreen(),
+                              settings: RouteSettings(arguments: {
+                                'filters': {'search': query, 'crossCategory': true},
+                              }),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
                   const SizedBox(height: 24),
-                  const PopularPackagesSection(),
+                  PopularPackagesSection(searchQuery: _searchQuery),
                   const SizedBox(height: 24),
-                  const ShopByEventSection(),
+                  ShopByEventSection(),
                   const SizedBox(height: 24),
                   const RecommendedSection(),
                   const SizedBox(height: 80), // Space for bottom nav
@@ -128,25 +127,7 @@ class HomeScreenContent extends StatefulWidget {
 }
 
 class _HomeScreenContentState extends State<HomeScreenContent> {
-  final CartRepository _cartRepo = CartRepository();
-
-  @override
-  void initState() {
-    super.initState();
-    _cartRepo.addListener(_onCartChanged);
-  }
-
-  @override
-  void dispose() {
-    _cartRepo.removeListener(_onCartChanged);
-    super.dispose();
-  }
-
-  void _onCartChanged() {
-    setState(() {
-      // Rebuild when cart changes
-    });
-  }
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -157,19 +138,36 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                SharedHeaderCard(
-                  showCartIcon: true,
-                  cartItemCount: _cartRepo.itemCount,
-                  onCartTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CartScreen()),
+                AnimatedBuilder(
+                  animation: CartRepository(),
+                  builder: (context, _) {
+                    return SharedHeaderCard(
+                      showCartIcon: true,
+                      cartItemCount: CartRepository().itemCount,
+                      onCartTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const CartScreen()),
+                        );
+                      },
+                      onSearch: (q) {
+                        final query = q.trim();
+                        if (query.isEmpty) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PackagesScreen(),
+                            settings: RouteSettings(arguments: {
+                              'filters': {'search': query, 'crossCategory': true},
+                            }),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
                 const SizedBox(height: 24),
-                const PopularPackagesSection(),
+                PopularPackagesSection(searchQuery: _searchQuery),
                 const SizedBox(height: 24),
-                const ShopByEventSection(),
+                ShopByEventSection(),
                 const SizedBox(height: 24),
                 const RecommendedSection(),
                 const SizedBox(height: 80), // Space for bottom nav
@@ -182,9 +180,9 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
   }
 }
 
-// Popular Packages Section
 class PopularPackagesSection extends StatelessWidget {
-  const PopularPackagesSection({super.key});
+  final String searchQuery;
+  const PopularPackagesSection({super.key, this.searchQuery = ''});
 
   @override
   Widget build(BuildContext context) {
@@ -225,10 +223,7 @@ class PopularPackagesSection extends StatelessWidget {
                     },
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(
-                        'VIEW ALL',
-                        style: AppTheme.viewAllText,
-                      ),
+                      child: Text('VIEW ALL', style: AppTheme.viewAllText),
                     ),
                   ),
                 ),
@@ -237,30 +232,16 @@ class PopularPackagesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // Use ListingsList widget with category filter for packages
         ListingsList(
-          filters: const {'category': 'package'},
+          filters: {
+            'category': 'package',
+            'isActive': true,
+            if (searchQuery.isNotEmpty) 'search': searchQuery,
+            'limit': 20,
+          },
           horizontal: true,
           height: 260,
           itemLimit: 10,
-          onAddToCart: (listing) {
-            final cartRepo = CartRepository();
-            cartRepo.addItem(
-              listingId: listing.id,
-              title: listing.title,
-              subtitle: listing.description ?? listing.category,
-              imageUrl: listing.imageUrl ?? '',
-              pricePerDay: listing.price ?? 0.0,
-              days: 1,
-              quantity: 1,
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${listing.title} added to cart!'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          },
         ),
       ],
     );
@@ -400,23 +381,34 @@ class _PopularPackageCard extends StatelessWidget {
   }
 }
 
-// Shop by Event Section
+// Shop by Event Section (toggleable filters)
 class ShopByEventSection extends StatefulWidget {
-  const ShopByEventSection({super.key});
+  final ValueChanged<String?>? onChanged; // Selected filter key or null if cleared
+
+  ShopByEventSection({super.key, this.onChanged});
 
   @override
   State<ShopByEventSection> createState() => _ShopByEventSectionState();
 }
 
 class _ShopByEventSectionState extends State<ShopByEventSection> {
-  int _selectedCategoryIndex = 0;
-  final List<String> _categories = ['Event!', 'Party', 'Birthday', 'Wedding'];
-  final List<IconData> _categoryIcons = [
-    Icons.location_on,
-    Icons.bolt,
-    Icons.edit,
-    Icons.celebration,
+  // -1 means no selection
+  int _selectedIndex = -1;
+
+  final List<_FilterOption> _options = const [
+    _FilterOption('Event!', Icons.location_on, 'event'),
+    _FilterOption('Party', Icons.bolt, 'party'),
+    _FilterOption('Birthday', Icons.edit, 'birthday'),
+    _FilterOption('Wedding', Icons.celebration, 'wedding'),
   ];
+
+  void _toggle(int index) {
+    setState(() {
+      // Tap again to clear selection
+      _selectedIndex = (_selectedIndex == index) ? -1 : index;
+    });
+    widget.onChanged?.call(_selectedIndex == -1 ? null : _options[_selectedIndex].key);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -452,7 +444,7 @@ class _ShopByEventSectionState extends State<ShopByEventSection> {
                   child: GestureDetector(
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PackagesScreen()),
+                        MaterialPageRoute(builder: (_) => const EventScreen()),
                       );
                     },
                     child: FittedBox(
@@ -475,92 +467,77 @@ class _ShopByEventSectionState extends State<ShopByEventSection> {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: List.generate(
-                _categories.length,
-                (index) => Padding(
-                  padding: EdgeInsets.only(right: index < _categories.length - 1 ? 8.0 : 0),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedCategoryIndex = index;
-                      });
-                    },
-                    child: _CategoryChip(
-                      label: _categories[index],
-                      icon: _categoryIcons[index],
-                      isActive: _selectedCategoryIndex == index,
-                    ),
+              children: [
+                for (int i = 0; i < _options.length; i++) ...[
+                  _CategoryChip(
+                    label: _options[i].label,
+                    icon: _options[i].icon,
+                    isActive: _selectedIndex == i,
+                    onTap: () => _toggle(i),
                   ),
-                ),
-              ),
+                  if (i < _options.length - 1) const SizedBox(width: 8),
+                ]
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        // Vertical Theme Cards
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: [
-              _VerticalThemeCard(
-                title: 'Create Your Custom Theme',
-                subtitle: 'Upload a moodboard + fill event details',
-                price: '₹15,000',
-                imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-              ),
-              const SizedBox(height: 16),
-              _VerticalThemeCard(
-                title: 'Create Your Custom Theme',
-                subtitle: 'Upload a moodboard + fill event details',
-                price: '₹15,000',
-                imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-              ),
-            ],
-          ),
-        ),
+        // Theme cards removed - use backend data instead
       ],
     );
   }
+}
+
+class _FilterOption {
+  final String label;
+  final IconData icon;
+  final String key;
+  const _FilterOption(this.label, this.icon, this.key);
 }
 
 class _CategoryChip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isActive;
+  final VoidCallback? onTap;
 
   const _CategoryChip({
     required this.label,
     required this.icon,
     required this.isActive,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isActive ? AppTheme.primaryColor : AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        border: isActive ? null : Border.all(color: AppTheme.textGrey.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 16,
-            color: isActive ? AppTheme.white : AppTheme.textGrey,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : AppTheme.white,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive ? null : Border.all(color: AppTheme.textGrey.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
               color: isActive ? AppTheme.white : AppTheme.textGrey,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? AppTheme.white : AppTheme.textGrey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -723,33 +700,32 @@ class RecommendedSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _RecommendedCard(
-                  title: 'Premium BBQ Grill Set',
-                  rating: 4.5,
-                  reviews: 128,
-                  price: '₹2,500/day',
-                  tag: 'Available',
-                  imageUrl: 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-                ),
+        // Use backend listings for recommended section
+        ListingsList(
+          filters: const {
+            'isActive': true,
+            'limit': 10,
+          },
+          horizontal: true,
+          height: 280,
+          onAddToCart: (listing) {
+            final cartRepo = CartRepository();
+            cartRepo.addItem(
+              listingId: listing.id,
+              title: listing.title,
+              subtitle: 'Recommended',
+              imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
+              pricePerDay: listing.price ?? 0.0,
+              days: 1,
+              quantity: 1,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${listing.title} added to cart!'),
+                duration: const Duration(seconds: 2),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _RecommendedCard(
-                  title: 'Professional DJ Equipment',
-                  rating: 4.8,
-                  reviews: 256,
-                  price: '₹8,000/event',
-                  tag: 'Available',
-                  imageUrl: 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400',
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -803,126 +779,130 @@ class _RecommendedCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 140,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tag,
-                      style: const TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 140,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$rating ($reviews)',
-                      style: AppTheme.ratingText,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  style: AppTheme.cardTitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final cartRepo = CartRepository();
-                      cartRepo.addItem(
-                        listingId: 'home_${title.hashCode}',
-                        title: title,
-                        subtitle: 'Recommended',
-                        imageUrl: imageUrl,
-                        pricePerDay: double.tryParse(price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
-                        days: 1,
-                        quantity: 1,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('$title added to cart!'), duration: const Duration(seconds: 2)),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkGrey,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: AppTheme.buttonText,
+                      child: Text(
+                        tag,
+                        style: const TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$rating ($reviews)',
+                        style: AppTheme.ratingText,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: AppTheme.cardTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.textDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Parse numeric price from string like ₹2,500/day
+                        double parsedPrice = 0;
+                        final raw = price.replaceAll(',', '');
+                        final match = RegExp(r"(\d+(?:\.\d+)?)").firstMatch(raw);
+                        if (match != null) {
+                          parsedPrice = double.tryParse(match.group(1)!) ?? 0;
+                        }
+                        CartRepository().addItem(
+                          listingId: title,
+                          title: title,
+                          subtitle: '',
+                          imageUrl: imageUrl,
+                          pricePerDay: parsedPrice,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Added to cart')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkGrey,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: AppTheme.buttonText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }

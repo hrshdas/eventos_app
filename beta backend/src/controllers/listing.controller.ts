@@ -6,7 +6,8 @@ import {
   updateListing,
   deleteListing,
 } from '../services/listing.service';
-import { saveListingImages } from '../utils/fileUpload';
+import { uploadImagesToCloudinary } from '../utils/cloudinaryUpload';
+
 
 export const createListingController = async (
   req: Request,
@@ -24,7 +25,7 @@ export const createListingController = async (
 
     // Transform frontend format to backend format
     const body = req.body;
-    
+
     // Handle price: frontend sends 'price', backend expects 'pricePerDay'
     const pricePerDay = body.pricePerDay ?? body.price;
     if (pricePerDay === undefined) {
@@ -49,22 +50,33 @@ export const createListingController = async (
     }
 
     // Convert price to number if it's a string (from FormData)
-    const priceValue = typeof pricePerDay === 'string' 
-      ? parseInt(pricePerDay, 10) 
+    const priceValue = typeof pricePerDay === 'string'
+      ? parseInt(pricePerDay, 10)
       : pricePerDay;
 
-    // Handle image uploads
+    // Handle image uploads to Cloudinary
     const uploadedFiles = req.files as Express.Multer.File[] | undefined;
     let imageUrls: string[] = [];
-    
+
     if (uploadedFiles && uploadedFiles.length > 0) {
       // Filter only image files (fieldname should be 'images')
       const imageFiles = uploadedFiles.filter(
         file => file.fieldname === 'images' && file.mimetype.startsWith('image/')
       );
-      
+
       if (imageFiles.length > 0) {
-        imageUrls = await saveListingImages(imageFiles, req);
+        try {
+          // Upload images to Cloudinary
+          imageUrls = await uploadImagesToCloudinary(imageFiles);
+          console.log(`✓ Uploaded ${imageUrls.length} images to Cloudinary`);
+        } catch (error) {
+          console.error('Cloudinary upload error:', error);
+          return res.status(400).json({
+            success: false,
+            error: `Image upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            code: 'UPLOAD_ERROR',
+          });
+        }
       }
     }
 

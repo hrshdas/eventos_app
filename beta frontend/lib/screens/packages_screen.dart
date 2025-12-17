@@ -3,12 +3,10 @@ import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 import 'package_details_screen.dart';
 import '../widgets/shared_header_card.dart';
-import 'cart_screen.dart';
-import '../features/cart/data/cart_repository.dart';
 import '../features/listings/data/listings_repository.dart';
 import '../features/listings/domain/models/listing.dart';
 import '../core/api/app_api_exception.dart';
-
+import '../api/api_config.dart';
 
 class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
@@ -20,26 +18,33 @@ class PackagesScreen extends StatefulWidget {
 class _PackagesScreenState extends State<PackagesScreen> {
   int _currentIndex = 0;
   int _selectedFilterIndex = 0;
-  final CartRepository _cartRepo = CartRepository();
+  String _searchQuery = '';
+  Map<String, dynamic> _incomingFilters = const {};
+  String? _categoryFilter; // 'decor' | 'rental' | 'package' | null for All
 
   @override
-  void initState() {
-    super.initState();
-    _cartRepo.addListener(_onCartChanged);
-  }
-
-  @override
-  void dispose() {
-    _cartRepo.removeListener(_onCartChanged);
-    super.dispose();
-  }
-
-  void _onCartChanged() {
-    setState(() {});
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map && args['filters'] is Map<String, dynamic>) {
+      _incomingFilters = Map<String, dynamic>.from(args['filters'] as Map<String, dynamic>);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final crossCategory = (_incomingFilters['crossCategory'] == true);
+    final hasExplicitCategory = _incomingFilters.containsKey('category');
+
+    // Build filters dynamically. If crossCategory is true, do not force 'package'.
+    final effectiveFilters = <String, dynamic>{
+      'isActive': true,
+      if (!crossCategory && !hasExplicitCategory) 'category': 'package',
+      if (crossCategory && _categoryFilter != null) 'category': _categoryFilter,
+      if (_searchQuery.isNotEmpty) 'search': _searchQuery,
+      ..._incomingFilters,
+    };
+
     return Scaffold(
       backgroundColor: AppTheme.lightGrey,
       body: SafeArea(
@@ -56,14 +61,48 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     Color(0xFFFF6B5A),
                   ],
                 ),
-                showCartIcon: true,
-                cartItemCount: _cartRepo.itemCount,
-                onCartTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CartScreen()),
-                  );
-                },
+                onSearch: (q) => setState(() => _searchQuery = q.trim()),
               ),
+              if (crossCategory) ...[
+                const SizedBox(height: 12),
+                // Category chips for cross-category search
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _CategoryChip(
+                        label: 'All',
+                        icon: Icons.apps,
+                        isActive: _categoryFilter == null,
+                        onTap: () => setState(() => _categoryFilter = null),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Decor',
+                        icon: Icons.palette,
+                        isActive: _categoryFilter == 'decor',
+                        onTap: () => setState(() => _categoryFilter = 'decor'),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Rentals',
+                        icon: Icons.chair,
+                        isActive: _categoryFilter == 'rental',
+                        onTap: () => setState(() => _categoryFilter = 'rental'),
+                      ),
+                      const SizedBox(width: 8),
+                      _CategoryChip(
+                        label: 'Packages',
+                        icon: Icons.inventory_2,
+                        isActive: _categoryFilter == 'package',
+                        onTap: () => setState(() => _categoryFilter = 'package'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               _FilterTabsRow(
                 selectedIndex: _selectedFilterIndex,
@@ -74,7 +113,9 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              const _PackagesGrid(),
+              _PackagesGrid(
+                filters: effectiveFilters,
+              ),
               const SizedBox(height: 80), // Space for bottom nav
             ],
           ),
@@ -125,8 +166,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
   }
 }
 
-// Packages Header with Pink Background
-// Filter Tabs Row
+// Filter Tabs Row (restored)
 class _FilterTabsRow extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onTap;
@@ -168,22 +208,11 @@ class _FilterTabsRow extends StatelessWidget {
                       : null,
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      filters[index]['icon'] as IconData,
-                      size: 16,
-                      color: isSelected ? AppTheme.textDark : AppTheme.textGrey,
-                    ),
+                    Icon(filters[index]['icon'] as IconData, size: 16, color: AppTheme.textDark),
                     const SizedBox(width: 6),
-                    Text(
-                      filters[index]['label'] as String,
-                      style: TextStyle(
-                        color: isSelected ? AppTheme.textDark : AppTheme.textGrey,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    Text(filters[index]['label'] as String,
+                        style: const TextStyle(color: AppTheme.textDark, fontSize: 12)),
                   ],
                 ),
               ),
@@ -195,98 +224,73 @@ class _FilterTabsRow extends StatelessWidget {
   }
 }
 
-// Packages Grid Section - Fetches from backend
 class _PackagesGrid extends StatefulWidget {
-  const _PackagesGrid();
+  final Map<String, dynamic> filters;
+  const _PackagesGrid({required this.filters});
 
   @override
   State<_PackagesGrid> createState() => _PackagesGridState();
 }
 
 class _PackagesGridState extends State<_PackagesGrid> {
-  final ListingsRepository _repository = ListingsRepository();
-  List<Listing> _listings = [];
-  bool _isLoading = true;
-  String? _errorMessage;
+  final ListingsRepository _repo = ListingsRepository();
+  List<Listing> _items = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadPackages();
+    _load();
   }
 
-  Future<void> _loadPackages() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
-      final listings = await _repository.getListings(
-        filters: {'category': 'package'},
-      );
-      if (mounted) {
-        setState(() {
-          _listings = listings;
-          _isLoading = false;
-        });
-      }
+      final resp = await _repo.getListings(filters: widget.filters);
+      if (!mounted) return;
+      setState(() { _items = resp; _loading = false; });
     } on AppApiException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.message;
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() { _error = e.message; _loading = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to load packages: ${e.toString()}';
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  String _img(Listing l) {
+    final p = (l.images != null && l.images!.isNotEmpty) ? l.images!.first : (l.imageUrl ?? '');
+    if (p.isEmpty) return '';
+    return p.startsWith('http') ? p : '$apiPublicBase/$p';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_loading) {
       return const Padding(
-        padding: EdgeInsets.all(60.0),
+        padding: EdgeInsets.all(32.0),
         child: Center(child: CircularProgressIndicator()),
       );
     }
-
-    if (_errorMessage != null) {
+    if (_error != null) {
       return Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppTheme.textGrey),
-            const SizedBox(height: 16),
-            Text(_errorMessage!, style: const TextStyle(color: AppTheme.textGrey)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadPackages,
-              child: const Text('Retry'),
-            ),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: _load, child: const Text('Retry')),
           ],
         ),
       );
     }
-
-    if (_listings.isEmpty) {
+    if (_items.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.all(60.0),
-        child: Center(
-          child: Text(
-            'No packages available',
-            style: TextStyle(color: AppTheme.textGrey, fontSize: 16),
-          ),
-        ),
+        padding: EdgeInsets.all(32.0),
+        child: Center(child: Text('No packages found', style: TextStyle(color: AppTheme.textGrey))),
       );
     }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
@@ -298,11 +302,16 @@ class _PackagesGridState extends State<_PackagesGrid> {
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         ),
-        itemCount: _listings.length,
+        itemCount: _items.length,
         itemBuilder: (context, index) {
-          final listing = _listings[index];
+          final l = _items[index];
           return _PackageCard(
-            listing: listing,
+            title: l.title,
+            rating: l.rating ?? 0,
+            reviews: l.reviewCount ?? 0,
+            price: l.formattedPrice,
+            imageUrl: _img(l),
+            listingId: l.id,
           );
         },
       ),
@@ -310,12 +319,21 @@ class _PackagesGridState extends State<_PackagesGrid> {
   }
 }
 
-// Package Card Widget
 class _PackageCard extends StatelessWidget {
-  final Listing listing;
+  final String title;
+  final double rating;
+  final int reviews;
+  final String price;
+  final String imageUrl;
+  final String? listingId;
 
   const _PackageCard({
-    required this.listing,
+    required this.title,
+    required this.rating,
+    required this.reviews,
+    required this.price,
+    required this.imageUrl,
+    this.listingId,
   });
 
   @override
@@ -326,11 +344,12 @@ class _PackageCard extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (context) => PackageDetailsScreen(
-              title: listing.title,
-              imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
-              rating: 4.5, // Default rating since not in listing model
-              soldCount: 100, // Default value
-              price: '₹${listing.price?.toInt() ?? 0}/event',
+              listingId: listingId,
+              title: title,
+              imageUrl: imageUrl,
+              rating: rating,
+              soldCount: reviews * 10, // Convert reviews to sold count estimate
+              price: price,
             ),
           ),
         );
@@ -348,153 +367,188 @@ class _PackageCard extends StatelessWidget {
           ],
         ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                // Available Tag
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 110,
+                    width: double.infinity,
+                    color: AppTheme.textGrey.withOpacity(0.2),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppTheme.textGrey.withOpacity(0.2),
+                          child: const Icon(Icons.image, size: 50),
+                        );
+                      },
                     ),
-                    child: const Text(
-                      'Available',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  // Available Tag
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.green,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                SizedBox(
-                  height: 32,
-                  child: Text(
-                    listing.title,
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        '4.5 (100 reviews)',
-                        style: const TextStyle(
-                          color: AppTheme.textGrey,
+                      child: const Text(
+                        'Available',
+                        style: TextStyle(
+                          color: AppTheme.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // Price
-                Text(
-                  '₹${listing.price?.toInt() ?? 0}/event',
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final cartRepo = CartRepository();
-                      cartRepo.addItem(
-                        listingId: listing.id,
-                        title: listing.title,
-                        subtitle: 'Package',
-                        imageUrl: (listing.images?.isNotEmpty ?? false) ? listing.images![0] : '',
-                        pricePerDay: listing.price ?? 0.0,
-                        days: 1,
-                        quantity: 1,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${listing.title} added to cart!'), duration: const Duration(seconds: 2)),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  SizedBox(
+                    height: 32,
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Rating
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.amber,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '$rating ($reviews)',
+                          style: const TextStyle(
+                            color: AppTheme.textGrey,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Price
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Add to Cart Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.darkNavy,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Add to Cart',
+                        style: TextStyle(
+                          color: AppTheme.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }
 
+// Category Chip Widget
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback? onTap;
+
+  const _CategoryChip({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.primaryColor : AppTheme.white,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive ? null : Border.all(color: AppTheme.textGrey.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isActive ? AppTheme.white : AppTheme.textGrey,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? AppTheme.white : AppTheme.textGrey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

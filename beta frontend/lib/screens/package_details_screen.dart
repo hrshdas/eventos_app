@@ -8,8 +8,8 @@ import '../core/api/app_api_exception.dart';
 import 'gallery_screen.dart';
 import '../features/bookings/data/booking_repository.dart';
 import 'booking_success_screen.dart';
-import 'cart_screen.dart';
 import '../features/cart/data/cart_repository.dart';
+import '../widgets/listings_list.dart';
 
 class PackageDetailsScreen extends StatefulWidget {
   final String? listingId; // If provided, fetch full listing details
@@ -40,24 +40,49 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
   Listing? _listing;
   bool _isLoading = false;
   String? _error;
-  
+
   int _currentIndex = 0;
   int _quantity = 1;
   bool _showFullDescription = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.listingId != null) {
-      _loadListing();
-    } else if ((widget.title ?? '').isNotEmpty) {
-      _lookupListingByTitle(widget.title!.trim());
+  void _addToCart() {
+    // Prefer loaded listing; fallback to widget-level props
+    final id = _listing?.id ?? widget.listingId ?? (widget.title ?? 'item');
+    final title = _listing?.title ?? widget.title ?? 'Item';
+    final subtitle = _listing?.description ?? '';
+    final imageUrl = _listing?.imageUrl ?? widget.imageUrl ?? '';
+    // Price: try numeric field first; else parse from formatted string like ₹2,500/day
+    double pricePerDay = 0;
+    if (_listing?.price != null) {
+      // Listing.price may be double depending on model
+      try {
+        pricePerDay = (_listing!.price as num).toDouble();
+      } catch (_) {
+        // fallback to parse widget.price string below
+      }
     }
+    if (pricePerDay == 0 && (widget.price ?? '').isNotEmpty) {
+      final raw = widget.price!.replaceAll(',', '');
+      final match = RegExp(r"(\d+(?:\.\d+)?)").firstMatch(raw);
+      if (match != null) {
+        pricePerDay = double.tryParse(match.group(1)!) ?? 0;
+      }
+    }
+    CartRepository().addItem(
+      listingId: id,
+      title: title,
+      subtitle: subtitle,
+      imageUrl: imageUrl,
+      pricePerDay: pricePerDay,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Added to cart')),
+    );
   }
 
   Future<void> _loadListing() async {
     if (widget.listingId == null) return;
-    
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -309,22 +334,7 @@ class _PackageDetailsScreenState extends State<PackageDetailsScreen> {
                   });
                 },
                 onOrderNow: _startBookingFlow,
-                onAddToCart: () {
-                  final cartRepo = CartRepository();
-                  final listingId = _listing?.id ?? 'pkg_${_displayTitle.hashCode}';
-                  cartRepo.addItem(
-                    listingId: listingId,
-                    title: _displayTitle,
-                    subtitle: _displayCategory,
-                    imageUrl: _displayImageUrl,
-                    pricePerDay: double.tryParse(_displayPrice.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
-                    days: 1,
-                    quantity: _quantity,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Item added to cart!'), duration: Duration(seconds: 2)),
-                  );
-                },
+                onAddToCart: _addToCart,
               ),
               const SizedBox(height: 24),
               const _RecommendedSection(),
@@ -487,10 +497,10 @@ class _HeroImageState extends State<_HeroImage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> displayImages = widget.images.isNotEmpty 
-        ? widget.images 
+    final List<String> displayImages = widget.images.isNotEmpty
+        ? widget.images
         : (widget.imageUrl.isNotEmpty ? [widget.imageUrl] : <String>[]);
-    
+
     if (displayImages.isEmpty) {
       return Container(
         height: 350,
@@ -668,176 +678,173 @@ class _DetailsCard extends StatelessWidget {
             topRight: Radius.circular(32),
           ),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title and Status Section
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: AppTheme.textDark,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                    if (status.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(status).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _getStatusColor(status).withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: _getStatusColor(status),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (category.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      category.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Rating Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _RatingRow(
-              rating: rating,
-              soldCount: soldCount,
-              quantity: quantity,
-              onQuantityChanged: onQuantityChanged,
-            ),
-          ),
-          const SizedBox(height: 20),
-          // Price Display
-          if (price.isNotEmpty)
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title and Status Section
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Text(
-                    price,
-                    style: const TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 24),
-          // Details Section
-          if (city.isNotEmpty || date != null || capacity != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.lightGrey,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    if (city.isNotEmpty || pincode.isNotEmpty)
-                      _DetailRow(
-                        icon: Icons.location_on,
-                        label: 'Location',
-                        value: [city, pincode].where((e) => e.isNotEmpty).join(', '),
-                      ),
-                    if (date != null) ...[
-                      if (city.isNotEmpty || pincode.isNotEmpty) const SizedBox(height: 12),
-                      _DetailRow(
-                        icon: Icons.calendar_today,
-                        label: 'Date',
-                        value: '${_formatDate(date!)}${time != null ? ' at $time' : ''}',
-                      ),
-                    ],
-                    if (capacity != null) ...[
-                      if (city.isNotEmpty || pincode.isNotEmpty || date != null) const SizedBox(height: 12),
-                      _DetailRow(
-                        icon: Icons.people,
-                        label: 'Capacity',
-                        value: '$capacity guests',
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          if (city.isNotEmpty || date != null || capacity != null) const SizedBox(height: 24),
-          // Description Section
-          if (description.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: AppTheme.textDark,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      if (status.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _getStatusColor(status).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: _getStatusColor(status),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (category.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        category.toUpperCase(),
+                        style: const TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _DescriptionSection(
-                    description: description,
-                    showFull: showFullDescription,
-                    onToggle: onToggleDescription,
-                  ),
+                  ],
                 ],
               ),
             ),
-          if (description.isNotEmpty) const SizedBox(height: 24),
-          // Action Buttons Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _ActionButtonsRow(
-              onOrderNow: onOrderNow,
-              onAddToCart: onAddToCart,
+            // Rating Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _RatingRow(
+                rating: rating,
+                soldCount: soldCount,
+                quantity: quantity,
+                onQuantityChanged: onQuantityChanged,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
+            const SizedBox(height: 20),
+            // Price Display
+            if (price.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text(
+                      price,
+                      style: const TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 24),
+            // Details Section
+            if (city.isNotEmpty || date != null || capacity != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightGrey,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      if (city.isNotEmpty || pincode.isNotEmpty)
+                        _DetailRow(
+                          icon: Icons.location_on,
+                          label: 'Location',
+                          value: [city, pincode].where((e) => e.isNotEmpty).join(', '),
+                        ),
+                      if (date != null) ...[
+                        if (city.isNotEmpty || pincode.isNotEmpty) const SizedBox(height: 12),
+                        _DetailRow(
+                          icon: Icons.calendar_today,
+                          label: 'Date',
+                          value: '${_formatDate(date!)}${time != null ? ' at $time' : ''}',
+                        ),
+                      ],
+                      if (capacity != null) ...[
+                        if (city.isNotEmpty || pincode.isNotEmpty || date != null) const SizedBox(height: 12),
+                        _DetailRow(
+                          icon: Icons.people,
+                          label: 'Capacity',
+                          value: '$capacity guests',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            if (city.isNotEmpty || date != null || capacity != null) const SizedBox(height: 24),
+            // Description Section
+            if (description.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        color: AppTheme.textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _DescriptionSection(
+                      description: description,
+                      showFull: showFullDescription,
+                      onToggle: onToggleDescription,
+                    ),
+                  ],
+                ),
+              ),
+            if (description.isNotEmpty) const SizedBox(height: 24),
+            // Action Buttons Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _ActionButtonsRow(onOrderNow: onOrderNow, onAddToCart: onAddToCart),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -1058,10 +1065,7 @@ class _ActionButtonsRow extends StatelessWidget {
   final VoidCallback onOrderNow;
   final VoidCallback onAddToCart;
 
-  const _ActionButtonsRow({
-    required this.onOrderNow,
-    required this.onAddToCart,
-  });
+  const _ActionButtonsRow({required this.onOrderNow, required this.onAddToCart});
 
   @override
   Widget build(BuildContext context) {
@@ -1133,34 +1137,17 @@ class _RecommendedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final recommendedItems = [
-      {
-        'title': 'Premium BBQ Grill Set',
-        'rating': 4.5,
-        'reviews': 128,
-        'price': '₹2,500/day',
-        'imageUrl': 'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400',
-      },
-      {
-        'title': 'Professional DJ Equipment',
-        'rating': 4.8,
-        'reviews': 256,
-        'price': '₹8,000/event',
-        'imageUrl': 'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?w=400',
-      },
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            children: [
+            children: const [
               Expanded(
                 child: Text(
                   'Recommended for your event',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textDark,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -1168,246 +1155,20 @@ class _RecommendedSection extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'VIEW ALL',
-                      style: AppTheme.viewAllText,
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _RecommendedCard(
-                  title: recommendedItems[0]['title'] as String,
-                  rating: recommendedItems[0]['rating'] as double,
-                  reviews: recommendedItems[0]['reviews'] as int,
-                  price: recommendedItems[0]['price'] as String,
-                  imageUrl: recommendedItems[0]['imageUrl'] as String,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _RecommendedCard(
-                  title: recommendedItems[1]['title'] as String,
-                  rating: recommendedItems[1]['rating'] as double,
-                  reviews: recommendedItems[1]['reviews'] as int,
-                  price: recommendedItems[1]['price'] as String,
-                  imageUrl: recommendedItems[1]['imageUrl'] as String,
-                ),
-              ),
-            ],
-          ),
+        // Fetch recommended listings from backend
+        ListingsList(
+          filters: const {
+            'isActive': true,
+            'limit': 2,
+          },
+          horizontal: true,
+          height: 280,
         ),
       ],
-    );
-  }
-}
-
-// Recommended Card
-class _RecommendedCard extends StatelessWidget {
-  final String title;
-  final double rating;
-  final int reviews;
-  final String price;
-  final String imageUrl;
-
-  const _RecommendedCard({
-    required this.title,
-    required this.rating,
-    required this.reviews,
-    required this.price,
-    required this.imageUrl,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PackageDetailsScreen(
-              title: title,
-              imageUrl: imageUrl,
-              rating: rating,
-              soldCount: reviews * 10,
-              price: price,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Stack(
-              children: [
-                Container(
-                  height: 110,
-                  width: double.infinity,
-                  color: AppTheme.textGrey.withOpacity(0.2),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppTheme.textGrey.withOpacity(0.2),
-                        child: const Icon(Icons.image, size: 50),
-                      );
-                    },
-                  ),
-                ),
-                // Available Tag
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'Available',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Title
-                SizedBox(
-                  height: 32,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rating
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        '$rating ($reviews)',
-                        style: const TextStyle(
-                          color: AppTheme.textGrey,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                // Price
-                Text(
-                  price,
-                  style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Add to Cart Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      final cartRepo = CartRepository();
-                      cartRepo.addItem(
-                        listingId: 'rec_${title.hashCode}',
-                        title: title,
-                        subtitle: 'Recommended',
-                        imageUrl: imageUrl,
-                        pricePerDay: double.tryParse(price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0.0,
-                        days: 1,
-                        quantity: 1,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('$title added to cart!'), duration: const Duration(seconds: 2)),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.darkNavy,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Add to Cart',
-                      style: TextStyle(
-                        color: AppTheme.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
     );
   }
 }

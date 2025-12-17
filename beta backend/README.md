@@ -79,7 +79,14 @@ PORT=3000
 NODE_ENV=development
 STRIPE_SECRET_KEY="sk_test_your_stripe_secret_key"
 STRIPE_WEBHOOK_SECRET="whsec_your_webhook_secret"
+# Google Sign-In (set one or multiple)
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_ID_ANDROID=""
+GOOGLE_CLIENT_ID_IOS=""
+GOOGLE_CLIENT_ID_WEB=""
 ```
+
+> Note: You can set either a single `GOOGLE_CLIENT_ID` or platform-specific client IDs. The backend validates Google ID tokens against any of the configured client IDs.
 
 ### 3. Set Up Database
 
@@ -128,6 +135,7 @@ The server will start on `http://localhost:3000` (or your configured PORT).
 - `POST /api/auth/signup` - Register new user
 - `POST /api/auth/login` - Login user
 - `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/google` - Sign in with Google (exchange idToken for JWTs)
 
 ### Users
 - `GET /api/users/me` - Get current user profile (protected)
@@ -166,23 +174,6 @@ curl -X POST http://localhost:3000/api/auth/signup \
   }'
 ```
 
-Response:
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "...",
-      "name": "John Doe",
-      "email": "john@example.com",
-      "role": "OWNER"
-    },
-    "accessToken": "...",
-    "refreshToken": "..."
-  }
-}
-```
-
 ### 2. Login
 
 ```bash
@@ -194,7 +185,18 @@ curl -X POST http://localhost:3000/api/auth/login \
   }'
 ```
 
-### 3. Create Listing (as OWNER)
+### 3. Google Sign-In (server verification)
+
+```bash
+# Replace <ID_TOKEN> with a token from your Flutter app or Google Playground
+curl -X POST http://localhost:3000/api/auth/google \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idToken": "<ID_TOKEN>"
+  }'
+```
+
+### 4. Create Listing (as OWNER)
 
 ```bash
 curl -X POST http://localhost:3000/api/listings \
@@ -210,44 +212,29 @@ curl -X POST http://localhost:3000/api/listings \
   }'
 ```
 
-### 4. Create Booking (as CONSUMER)
+## Google Token Troubleshooting
 
-First, sign up as a CONSUMER, then:
+If ID token verification fails, use the following Node snippet locally to debug the payload and audiences:
 
-```bash
-curl -X POST http://localhost:3000/api/bookings \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer CONSUMER_ACCESS_TOKEN" \
-  -d '{
-    "listingId": "LISTING_ID_FROM_STEP_3",
-    "startDate": "2024-06-01T10:00:00Z",
-    "endDate": "2024-06-03T18:00:00Z"
-  }'
-```
+```ts
+import { OAuth2Client } from 'google-auth-library';
 
-### 5. Initiate Payment
+async function debug(idToken: string, audiences: string[]) {
+  const client = new OAuth2Client();
+  const ticket = await client.verifyIdToken({ idToken, audience: audiences });
+  const payload = ticket.getPayload();
+  console.log('Issuer:', payload?.iss);
+  console.log('Audience (aud):', payload?.aud);
+  console.log('Email:', payload?.email);
+}
 
-```bash
-curl -X POST http://localhost:3000/api/payments/initiate \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer CONSUMER_ACCESS_TOKEN" \
-  -d '{
-    "bookingId": "BOOKING_ID_FROM_STEP_4"
-  }'
-```
-
-### 6. Test AI Party Planner
-
-```bash
-curl -X POST http://localhost:3000/api/ai/party-planner \
-  -H "Content-Type: application/json" \
-  -d '{
-    "date": "2024-06-15",
-    "guests": 50,
-    "budget": 5000,
-    "theme": "elegant",
-    "location": "outdoor"
-  }'
+// Example usage
+// debug(process.env.DEBUG_ID_TOKEN as string, [
+//   process.env.GOOGLE_CLIENT_ID_ANDROID!,
+//   process.env.GOOGLE_CLIENT_ID_IOS!,
+//   process.env.GOOGLE_CLIENT_ID_WEB!,
+//   process.env.GOOGLE_CLIENT_ID!,
+// ].filter(Boolean));
 ```
 
 ## Database Models
@@ -282,6 +269,10 @@ curl -X POST http://localhost:3000/api/ai/party-planner \
 | `NODE_ENV` | Environment (development/production) | No |
 | `STRIPE_SECRET_KEY` | Stripe secret key | No (for payments) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | No |
+| `GOOGLE_CLIENT_ID` | Single Google client ID (fallback) | No |
+| `GOOGLE_CLIENT_ID_ANDROID` | Android client ID | No |
+| `GOOGLE_CLIENT_ID_IOS` | iOS client ID | No |
+| `GOOGLE_CLIENT_ID_WEB` | Web client ID | No |
 
 ## Security Notes
 
@@ -349,4 +340,3 @@ For complete testing instructions, see [TESTING.md](./TESTING.md)
 ## License
 
 ISC
-

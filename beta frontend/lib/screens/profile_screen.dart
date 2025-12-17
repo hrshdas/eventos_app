@@ -146,6 +146,11 @@ class _AccountActionsList extends StatelessWidget {
             icon: Icons.support_agent,
             label: 'Help & Support',
             showDivider: true,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+              );
+            },
           ),
           _item(
             icon: Icons.logout,
@@ -932,6 +937,125 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           );
                         },
                       ),
+      ),
+    );
+  }
+}
+
+// ================== Help & Support Screen ==================
+class HelpSupportScreen extends StatelessWidget {
+  const HelpSupportScreen({super.key});
+
+  void _openComposer(BuildContext context) async {
+    final controller = TextEditingController();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Send a message', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    hintText: 'Describe your issue... (order id, date, etc.)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Message sent. Our team will get back to you.')));
+                      },
+                      child: const Text('Send'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Help & Support'),
+        backgroundColor: AppTheme.white,
+        foregroundColor: AppTheme.textDark,
+        elevation: 0,
+      ),
+      backgroundColor: AppTheme.lightGrey,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: AppTheme.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.help_outline, color: AppTheme.textDark),
+                  title: const Text('FAQs'),
+                  subtitle: const Text('Common questions and answers'),
+                  trailing: const Icon(Icons.chevron_right, color: AppTheme.textGrey),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('FAQs'),
+                        content: const Text('Coming soon. For now, please send us a message.'),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.email_outlined, color: AppTheme.textDark),
+                  title: const Text('Email us'),
+                  subtitle: const Text('support@eventos.app'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.phone_outlined, color: AppTheme.textDark),
+                  title: const Text('Call us'),
+                  subtitle: const Text('+91 98765 43210'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.chat_bubble_outline, color: AppTheme.textDark),
+                  title: const Text('Send a message'),
+                  trailing: const Icon(Icons.chevron_right, color: AppTheme.textGrey),
+                  onTap: () => _openComposer(context),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

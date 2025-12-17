@@ -2,6 +2,7 @@ import { createApp } from './app';
 import { config } from './config/env';
 import { logger } from './utils/logger';
 import { prisma } from './config/db';
+import { configureCloudinary } from './config/cloudinary.config';
 
 const app = createApp();
 
@@ -10,6 +11,9 @@ const startServer = async () => {
     // Test database connection
     await prisma.$connect();
     logger.info('Database connected successfully');
+
+    // Configure Cloudinary (will validate env vars)
+    configureCloudinary();
 
     // Start server
     const port = config.port || 10000;

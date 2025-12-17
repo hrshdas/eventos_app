@@ -28,45 +28,22 @@ class _EventScreenState extends State<EventScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 8),
-                  const SharedHeaderCard(),
+                  SharedHeaderCard(
+                    onSearch: (q) {
+                      final query = q.trim();
+                      if (query.isEmpty) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PackagesScreen(),
+                          settings: RouteSettings(arguments: {
+                            'filters': {'search': query},
+                          }),
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 24),
                   const _BrowseCategoriesSection(),
-                  const SizedBox(height: 24),
-                  const _PopularSection(
-                    title: 'Popular Decor for you ',
-                    items: [
-                      _PopularItem(
-                        title: 'Create Your Custom Theme',
-                        subtitle: 'Upload a moodboard + fill event details',
-                        price: '₹15,000',
-                        imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                      ),
-                      _PopularItem(
-                        title: 'Create Your Custom Theme',
-                        subtitle: 'Upload a moodboard + fill event details',
-                        price: '₹15,000',
-                        imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const _PopularSection(
-                    title: 'Popular Rentals for you ',
-                    items: [
-                      _PopularItem(
-                        title: 'Create Your Custom Theme',
-                        subtitle: 'Upload a moodboard + fill event details',
-                        price: '₹15,000',
-                        imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                      ),
-                      _PopularItem(
-                        title: 'Create Your Custom Theme',
-                        subtitle: 'Upload a moodboard + fill event details',
-                        price: '₹15,000',
-                        imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 80), // Space for bottom nav
                 ],
               ),
@@ -132,45 +109,22 @@ class EventScreenContent extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: 8),
-                const SharedHeaderCard(),
+                SharedHeaderCard(
+                  onSearch: (q) {
+                    final query = q.trim();
+                    if (query.isEmpty) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PackagesScreen(),
+                        settings: RouteSettings(arguments: {
+                          'filters': {'search': query},
+                        }),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 24),
                 const _BrowseCategoriesSection(),
-                const SizedBox(height: 24),
-                const _PopularSection(
-                  title: 'Popular Decor for you ',
-                  items: [
-                    _PopularItem(
-                      title: 'Create Your Custom Theme',
-                      subtitle: 'Upload a moodboard + fill event details',
-                      price: '₹15,000',
-                      imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                    ),
-                    _PopularItem(
-                      title: 'Create Your Custom Theme',
-                      subtitle: 'Upload a moodboard + fill event details',
-                      price: '₹15,000',
-                      imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const _PopularSection(
-                  title: 'Popular Rentals for you ',
-                  items: [
-                    _PopularItem(
-                      title: 'Create Your Custom Theme',
-                      subtitle: 'Upload a moodboard + fill event details',
-                      price: '₹15,000',
-                      imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                    ),
-                    _PopularItem(
-                      title: 'Create Your Custom Theme',
-                      subtitle: 'Upload a moodboard + fill event details',
-                      price: '₹15,000',
-                      imageUrl: 'https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400',
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 80), // Space for bottom nav
               ],
             ),
@@ -331,199 +285,6 @@ class _CategoryCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// Popular Section (reusable for Decor and Rentals)
-class _PopularSection extends StatelessWidget {
-  final String title;
-  final List<_PopularItem> items;
-
-  const _PopularSection({
-    required this.title,
-    required this.items,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'VIEW ALL',
-                style: AppTheme.viewAllText,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          ...items.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _PopularItemCard(item: item),
-              )),
-        ],
-      ),
-    );
-  }
-}
-
-// Popular Item Data Model
-class _PopularItem {
-  final String title;
-  final String subtitle;
-  final String price;
-  final String imageUrl;
-
-  const _PopularItem({
-    required this.title,
-    required this.subtitle,
-    required this.price,
-    required this.imageUrl,
-  });
-}
-
-// Popular Item Card Widget
-class _PopularItemCard extends StatelessWidget {
-  final _PopularItem item;
-
-  const _PopularItemCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Image on left
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 120,
-              height: 120,
-              color: AppTheme.textGrey.withOpacity(0.2),
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: AppTheme.textGrey.withOpacity(0.2),
-                    child: const Icon(Icons.image, size: 40),
-                  );
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Content on right
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: const TextStyle(
-                    color: AppTheme.textDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.subtitle,
-                  style: const TextStyle(
-                    color: AppTheme.textGrey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                // Bottom row: Price pill + Request Design button
-                Row(
-                  children: [
-                    // Price pill
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFE5E5), // Soft pink/orange
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'From ${item.price}',
-                          style: const TextStyle(
-                            color: AppTheme.primaryColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Request Design button
-                    Flexible(
-                      child: GestureDetector(
-                        onTap: () {
-                          // Handle request design action
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AppTheme.darkNavy,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Request Design',
-                            style: TextStyle(
-                              color: AppTheme.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

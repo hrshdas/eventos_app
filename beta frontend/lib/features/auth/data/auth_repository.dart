@@ -246,6 +246,11 @@ class AuthRepository {
         throw AppApiException(message: 'Failed to retrieve Google ID token');
       }
 
+      // Debug helper: print idToken in debug builds only
+      if (kDebugMode) {
+        debugPrint('[AuthRepository] Google idToken (debug only): ${idToken.substring(0, idToken.length > 24 ? 24 : idToken.length)}...');
+      }
+
       final response = await _apiClient.post(
         '/auth/google',
         data: { 'idToken': idToken },
