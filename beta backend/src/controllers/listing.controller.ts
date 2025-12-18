@@ -114,6 +114,7 @@ export const getListingsController = async (
     const filters = {
       category: req.query.category as string | undefined,
       location: req.query.location as string | undefined,
+      search: req.query.search as string | undefined,
       minPrice: req.query.minPrice ? parseInt(req.query.minPrice as string) : undefined,
       maxPrice: req.query.maxPrice ? parseInt(req.query.maxPrice as string) : undefined,
       isActive: req.query.isActive !== 'false',
@@ -225,6 +226,7 @@ export const getMyListingsController = async (
     const filters = {
       category: req.query.category as string | undefined,
       location: req.query.location as string | undefined,
+      search: req.query.search as string | undefined,
       minPrice: req.query.minPrice ? parseInt(req.query.minPrice as string) : undefined,
       maxPrice: req.query.maxPrice ? parseInt(req.query.maxPrice as string) : undefined,
       isActive: req.query.isActive !== 'false',

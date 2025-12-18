@@ -31,6 +31,7 @@ export interface ListingFilters {
   maxPrice?: number;
   isActive?: boolean;
   ownerId?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -65,6 +66,7 @@ export const getListings = async (
     maxPrice,
     isActive = true,
     ownerId,
+    search,
     page = 1,
     limit = 10,
   } = filters;
@@ -78,14 +80,24 @@ export const getListings = async (
     ...(minPrice !== undefined && { pricePerDay: { gte: minPrice } }),
     ...(maxPrice !== undefined && { pricePerDay: { lte: maxPrice } }),
     ...(ownerId && { ownerId }),
+    ...(search && { title: { contains: search, mode: 'insensitive' } }),
   };
+
+  // If search is provided, we want to sort by relevance (exact matches first, then partial matches)
+  // Otherwise, sort by creation date
+  const orderBy: Prisma.ListingOrderByWithRelationInput[] = search
+    ? [
+      // Prisma doesn't support direct relevance sorting, so we'll sort client-side after fetching
+      { createdAt: 'desc' }
+    ]
+    : [{ createdAt: 'desc' }];
 
   const [listings, total] = await Promise.all([
     prisma.listing.findMany({
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       include: {
         owner: {
           select: {
@@ -104,8 +116,38 @@ export const getListings = async (
     prisma.listing.count({ where }),
   ]);
 
+  // Sort by relevance if search query is provided
+  let sortedListings = listings as any[];
+  if (search) {
+    const searchLower = search.toLowerCase();
+    sortedListings = [...listings].sort((a, b) => {
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
+
+      // Exact match comes first
+      const aExact = aTitle === searchLower;
+      const bExact = bTitle === searchLower;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+
+      // Starts with search query comes next
+      const aStarts = aTitle.startsWith(searchLower);
+      const bStarts = bTitle.startsWith(searchLower);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+
+      // Position of search term (earlier is better)
+      const aIndex = aTitle.indexOf(searchLower);
+      const bIndex = bTitle.indexOf(searchLower);
+      if (aIndex !== bIndex) return aIndex - bIndex;
+
+      // Finally, sort by creation date
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }
+
   return {
-    listings: listings as any,
+    listings: sortedListings,
     total,
     page,
     limit,
